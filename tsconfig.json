@@ -1,0 +1,24 @@
+{
+  "extends": "plasmo/templates/tsconfig.base",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "~*": [
+        "src/*"
+      ]
+    },
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "moduleResolution": "Bundler",
+    "types": [
+      "chrome",
+      "node"
+    ]
+  },
+  "include": [
+    ".plasmo/index.d.ts",
+    "src"
+  ]
+}

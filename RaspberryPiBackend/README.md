@@ -1,6 +1,6 @@
-# Guardian Eye Raspberry Pi Backend
+# ARGUS Raspberry Pi Backend
 
-FastAPI server for the Guardian Eye smart glasses project.
+FastAPI server for the ARGUS smart glasses project.
 
 ## What it does
 

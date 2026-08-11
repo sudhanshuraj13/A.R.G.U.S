@@ -1,0 +1,116 @@
+{
+	"info": {
+		"name": "Guardian Eye Raspberry Pi Backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000"
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": ["{{base_url}}"],
+					"path": ["health"]
+				}
+			}
+		},
+		{
+			"name": "Detect Object",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "image/jpeg"
+					}
+				],
+				"body": {
+					"mode": "file",
+					"file": {
+						"src": ""
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/detect/object",
+					"host": ["{{base_url}}"],
+					"path": ["detect", "object"]
+				}
+			}
+		},
+		{
+			"name": "Detect Currency",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "image/jpeg"
+					}
+				],
+				"body": {
+					"mode": "file",
+					"file": {
+						"src": ""
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/detect/currency",
+					"host": ["{{base_url}}"],
+					"path": ["detect", "currency"]
+				}
+			}
+		},
+		{
+			"name": "Assist",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "image/jpeg"
+					}
+				],
+				"body": {
+					"mode": "file",
+					"file": {
+						"src": ""
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/assist",
+					"host": ["{{base_url}}"],
+					"path": ["assist"]
+				}
+			}
+		},
+		{
+			"name": "Distance",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"distance\": 45\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/distance",
+					"host": ["{{base_url}}"],
+					"path": ["distance"]
+				}
+			}
+		}
+	]
+}

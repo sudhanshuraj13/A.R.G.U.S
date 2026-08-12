@@ -59,3 +59,29 @@ chrome.runtime.onMessage.addListener(
     }
   }
 )
+
+// ─── Hardware / RaspberryPiBackend Polling Bridge ────────────────────────────
+import { BackendBridge } from "~/services/BackendBridge"
+
+const bridge = new BackendBridge("http://127.0.0.1:8000", 3000)
+
+bridge.startPolling(async (task) => {
+  console.log(`[ARGUS Background] Executing command from hardware/Postman: "${task.command}"`)
+  
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (!tab?.id) {
+    throw new Error("No active browser tab found to run voice automation command.")
+  }
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: "ARGUS_RUN_COMMAND",
+    command: task.command,
+  })
+
+  if (!response || !response.ok) {
+    throw new Error(response?.error || "Failed to execute command in active browser tab.")
+  }
+
+  return response.result || `Command "${task.command}" dispatched to browser tab.`
+})
+

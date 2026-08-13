@@ -9,14 +9,14 @@
 
 export interface ArgusBackgroundMessage {
   type: "ARGUS_NEW_TAB" | "ARGUS_EXECUTE_ON_TAB"
-  url?: string
-  command?: string
+  url?: string | undefined
+  command?: string | undefined
 }
 
 export interface ArgusBackgroundResponse {
   ok: boolean
-  tabId?: number
-  error?: string
+  tabId?: number | undefined
+  error?: string | undefined
 }
 
 // ─── Open side panel when the toolbar icon is clicked ────────────────────────

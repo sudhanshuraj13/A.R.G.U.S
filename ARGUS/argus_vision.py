@@ -18,7 +18,7 @@ ESP32_CAPTURE_URL = "http://10.28.160.202/capture"
 # Path to your custom YOLO model
 # Example:
 # /home/gurkiratraspberrypi/Desktop/ARGUS/ARGUS/models/best.pt
-MODEL_PATH = "/home/gurkiratraspberrypi/Desktop/ARGUS/ARGUS/best.pt"
+MODEL_PATH = "yolo11n.pt"
 
 # YOLO confidence threshold
 CONFIDENCE_THRESHOLD = 0.50

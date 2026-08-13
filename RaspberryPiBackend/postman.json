@@ -111,6 +111,72 @@
 					"path": ["distance"]
 				}
 			}
+		},
+		{
+			"name": "Submit Voice Command",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"command\": \"Search for latest AI news on Google\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/voice/command",
+					"host": ["{{base_url}}"],
+					"path": ["voice", "command"]
+				}
+			}
+		},
+		{
+			"name": "Get Pending Voice Command",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/voice/pending",
+					"host": ["{{base_url}}"],
+					"path": ["voice", "pending"]
+				}
+			}
+		},
+		{
+			"name": "Submit Voice Result",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"task_id\": \"REPLACE_WITH_TASK_ID\",\n  \"ok\": true,\n  \"result\": \"Navigated to Google and retrieved search results.\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/voice/result",
+					"host": ["{{base_url}}"],
+					"path": ["voice", "result"]
+				}
+			}
+		},
+		{
+			"name": "Get Voice Task Status",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/voice/status/REPLACE_WITH_TASK_ID",
+					"host": ["{{base_url}}"],
+					"path": ["voice", "status", "REPLACE_WITH_TASK_ID"]
+				}
+			}
 		}
 	]
 }

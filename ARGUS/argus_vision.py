@@ -27,7 +27,7 @@ CONFIDENCE_THRESHOLD = 0.50
 SPEECH_COOLDOWN = 2.0
 
 # HTTP timeout for ESP32-CAM
-CAMERA_TIMEOUT = 5
+CAMERA_TIMEOUT = 30
 
 # Maximum number of consecutive camera failures
 MAX_CAMERA_FAILURES = 10

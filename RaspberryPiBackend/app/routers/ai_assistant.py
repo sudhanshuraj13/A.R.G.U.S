@@ -24,6 +24,9 @@ def init_ai_assistant() -> None:
         return
 
     try:
+        from dotenv import load_dotenv
+        load_dotenv(AI_ASSISTANCE_DIR / ".env")
+
         from assistant import AssistantEngine
         from memory import MemoryManager
         from vision import VisionModule

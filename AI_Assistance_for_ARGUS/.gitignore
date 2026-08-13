@@ -1,0 +1,21 @@
+# Virtual environment
+venv/
+.venv/
+Env/
+env/
+
+# Environment variables
+.env
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Streamlit config / cache
+.streamlit/
+
+# Local data & logs
+argus_notes.json
+*.log

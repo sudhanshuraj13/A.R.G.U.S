@@ -1,0 +1,16 @@
+[Unit]
+Description=ARGUS Assistive AI System
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ARGUS
+ExecStart=/home/pi/ARGUS/venv/bin/python main_headless.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -52,17 +52,22 @@ Or run the launcher:
 python app.py
 ```
 
-## ESP32 endpoints
-
-The ESP32 firmware posts raw JPEG bytes to:
-
 - `POST /detect/object`
 - `POST /detect/currency`
 - `POST /assist`
 - `POST /distance`
 
+## AI Assistant endpoints (Llama 3.2 Vision & Chat)
+
+Integrated from `AI_Assistance_for_ARGUS`:
+
+- `POST /ai/query` - Send natural language text query (e.g. `{"query": "What time is it?"}`)
+- `POST /ai/scene` - Trigger Llama 3.2 Vision scene description
+- `POST /ai/notes` - Add/retrieve persistent notes
+
 ## Notes
 
+- Set `KIMI_API_KEY` in `AI_Assistance_for_ARGUS/.env` for Llama 3.2 Vision API features.
 - Put your object model at `RaspberryPiBackend/app/models/yolov8s.pt` or set `OBJECT_MODEL_PATH`.
 - Put your currency model at `RaspberryPiBackend/app/models/best.pt` or set `CURRENCY_MODEL_PATH`.
 - If your model files live elsewhere, update the environment variables above.

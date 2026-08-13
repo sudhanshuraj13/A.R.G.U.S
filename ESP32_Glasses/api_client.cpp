@@ -79,7 +79,7 @@ bool APIClient::sendRequest(
         "image/jpeg"
     );
 
-    http.setTimeout(15000);
+    http.setTimeout(HTTP_TIMEOUT_MS);
 
     int responseCode = http.POST(
         const_cast<uint8_t*>(imageData),

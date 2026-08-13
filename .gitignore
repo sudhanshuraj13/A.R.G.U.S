@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.plasmo/
+
+# Build & Compiled files
+build/
+dist/
+*.tsbuildinfo
+*.pyc
+__pycache__/
+app/__pycache__/
+app/**/__pycache__/
+
+# Environment & Secret files
+.env
+.env.*
+!.env.example
+
+# Hardware & Model Outputs
+outputs/
+app/models/*.pt
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

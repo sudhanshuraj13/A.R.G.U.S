@@ -40,22 +40,22 @@ The extension operates through a pipeline of sequential steps:
   - **What it is:** A suite of APIs designed for AI agents to search the web and extract clean markdown from web pages.
   - **How we use it:** Managed by the `TinyFishClient`. During the AI Planning phase (`AIPlanner`), ARGUS uses TinyFish to execute a web search based on the user's goal. It feeds the top 5 results (URLs, titles, snippets) directly into the LLM prompt. This grounds the AI in reality, allowing it to generate accurate navigation URLs instead of hallucinating them.
 
-### How TinyFish and Playwright Work Together (The Automation Loop)
-The smoothness of ARGUS comes from the separation of "world knowledge" and "physical execution":
-1. **Planning with TinyFish:** When a user asks "Buy me a blue shirt on Amazon", the `AIPlanner` first asks TinyFish to search for this. TinyFish returns the exact URL for the search results page. The LLM uses this to output a JSON plan: `[{ kind: "navigate", url: "https://amazon.com/s?k=blue+shirt" }, { kind: "click", target: "first blue shirt" }]`.
-2. **Execution with Playwright / AgentQL:** The `ExecutionEngine` receives the plan. It uses the custom Playwright `DomBrowserRuntime` to navigate the active tab to the TinyFish-provided URL. Once the page loads, ARGUS uses AgentQL to visually locate the "first blue shirt" and uses Playwright's synthetic DOM events to securely click it. 
-*TinyFish provides the map; Playwright drives the car.*
+- **RaspberryPiBackend & ESP32 Hardware Integration:**
+  - **What it is:** A FastAPI Python backend running on Raspberry Pi paired with ESP32-CAM Smart Glasses hardware.
+  - **How we use it:** `RaspberryPiBackend` exposes a `/voice/command` router (`app/routers/voice.py`) and a `BackendBridge` in the Chrome Extension. Hardware (ESP32) or Postman sends HTTP commands to the backend, which are fetched by the Chrome Extension background worker, executed natively on Chrome DOM using TinyFish/AgentQL, and reported back to `RaspberryPiBackend` to speak out results via `pyttsx3` Text-to-Speech audio.
 
-### Core Browser APIs
-- **Web Speech API:**
-  - **What it is:** A native browser API built into Chrome for speech recognition (Speech-to-Text) and synthesis (Text-to-Speech).
-  - **How we use it:** Captures the user's microphone input in `VoiceInput.ts` to transcribe spoken commands in real-time, driving the entire automation loop. Used in `VoiceOutput.ts` to provide audible status updates back to the user.
-- **Chrome Side Panel API (`chrome.sidePanel`):**
-  - **What it is:** A Chrome Manifest V3 API that allows extensions to display persistent UI anchored to the side of the browser window.
-  - **How we use it:** Hosts the main ARGUS React application. This ensures the assistant's UI stays open and maintains context even when the user navigates across different tabs, opens new tabs, or redirects between websites.
+### How TinyFish, Custom DOM, and RaspberryPiBackend Work Together (The Automation Loop)
+The smoothness of ARGUS comes from the separation of "world knowledge", "physical execution", and "hardware integration":
+1. **Hardware / Postman Command Ingestion:** The ESP32 Smart Glasses hardware or Postman collection posts a command (e.g. "Find me a blue T-shirt on Amazon") to `RaspberryPiBackend` (`POST /voice/command`).
+2. **Bridge Relay:** The `BackendBridge` running in the `Voice Agent` Chrome Extension polls `http://localhost:8000/voice/pending`, picks up the command, and forwards it to the active browser tab.
+3. **Planning with TinyFish:** The `AIPlanner` uses TinyFish search adapters to find the exact URL for the search results page. The LLM outputs structured browser action steps.
+4. **Execution with Custom DOM Runtime:** The `ExecutionEngine` receives the plan and executes actions natively inside active Chrome tabs using custom DOM event injection, bypassing standard CDP/Playwright anti-bot restrictions.
+5. **TTS Audio Output:** Upon task completion, the extension sends execution results (`POST /voice/result`) back to `RaspberryPiBackend`, which speaks the response out loud using `pyttsx3`.
 
 ## 4. What features are completed?
 - **Fast Voice Input:** Optimized speech recognition that triggers instantly upon detecting a stable interim transcript.
+- **Hardware & Backend Bridge:** Complete FastAPI integration (`/voice/command`, `/voice/pending`, `/voice/result`) allowing ESP32 smart glasses and Postman collections to drive browser automation.
+- **Audible TTS Feedback:** Real-time spoken notifications via `pyttsx3` text-to-speech upon task completion.
 - **Side Panel UI:** A persistent, glassmorphic UI that survives tab changes and handles user approvals and notifications.
 - **Cascading Element Resolution:** Robust targeting of DOM elements using accessibility trees, text matching, and AgentQL fallbacks.
 - **Safety System:** Automated risk classification that intercepts dangerous operations and prompts the user for manual approval via the UI.
@@ -63,27 +63,36 @@ The smoothness of ARGUS comes from the separation of "world knowledge" and "phys
 - **Provider Settings Integration:** Dynamic integration of external AI providers (OpenAI, Anthropic, etc.) and API keys.
 
 ## 5. What challenges were faced and solved?
+- **CDP & Playwright Headless Limitations:** Standard Playwright over Chrome Developer Protocol (CDP) suffers from anti-bot blocking and lacks access to existing user browser sessions. *Solution:* Built a custom `DomBrowserRuntime` injected via Chrome Content Scripts combined with a `BackendBridge` that connects FastAPI backend commands directly to native Chrome tabs.
 - **Slow Voice Recognition:** The default Web Speech API `continuous=true` mode waited up to 5 seconds to finalize transcripts. *Solution:* Re-engineered `VoiceInput.ts` to use single-utterance mode with a custom 1.2s interim stability timer and a 3s silence timeout, resulting in 3x faster response times.
-- **Extension Sandbox Limitations:** Running Playwright/AgentQL directly inside a Chrome Extension is restricted due to Node.js dependency requirements and cross-origin policies. *Solution:* Built a custom `DomBrowserRuntime` that leverages Chrome Content Scripts to execute standard DOM events, abstracting it behind a Playwright-like interface.
 - **Unreliable Selectors:** Hardcoded CSS selectors break when websites update. *Solution:* Implemented a cascading resolver that prioritizes accessibility roles/text and falls back to semantic AI resolution (AgentQL/Vision).
 
 ## 6. What is the current status and limitations?
-- **Status:** The MVP is fully functional. It captures voice input, displays a modern side-panel UI, extracts intents, plans actions, enforces safety, and executes commands on the DOM.
+- **Status:** The MVP is fully functional across hardware, backend, and extension layers. ESP32 smart glasses and Postman collections can trigger complex browser automation tasks, which are executed natively and announced via voice TTS.
 - **Limitations:** 
-  - Voice recognition relies on the Web Speech API, which varies in quality depending on the browser (e.g., Chrome vs. Brave).
+  - Voice recognition relies on the Web Speech API or backend STT, which varies depending on environmental noise.
   - Heavy reliance on external API keys (AgentQL, TinyFish, LLMs) for advanced planning and resolution.
-  - Complex multi-page workflows or heavy CAPTCHAs can disrupt the `DomBrowserRuntime`.
+  - Complex multi-page workflows with aggressive CAPTCHAs can require manual user intervention.
 
 ## 7. How can another developer run or extend it?
 **To Run:**
-1. Clone the repository and run `npm install`.
-2. Run `npm run dev` to start the Plasmo development server.
-3. Open Chrome and navigate to `chrome://extensions/`.
-4. Enable "Developer mode" and click "Load unpacked". Select the `build/chrome-mv3-dev` directory.
-5. Click the extension icon to open the ARGUS Side Panel.
+1. Start the FastAPI backend:
+   ```bash
+   cd RaspberryPiBackend
+   pip install -r requirements.txt
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+2. Start the Plasmo extension dev server:
+   ```bash
+   cd "Voice Agent"
+   npm install
+   npm run dev
+   ```
+3. Load unpacked extension in Chrome (`chrome://extensions/` -> `build/chrome-mv3-dev`).
+4. Test hardware/Postman endpoints using the included `RaspberryPiBackend/postman.json` collection!
 
 **To Extend:**
-- **Add New Intents:** Modify `src/orchestration/intent/RuleBasedIntentExtractor.ts` to recognize new command patterns.
-- **Improve AI Planning:** Enhance `src/orchestration/planner/AIPlanner.ts` by integrating new LLM providers or complex prompt chains.
-- **New Element Resolvers:** Add custom computer vision or DOM traversal strategies inside `src/automation/resolver/` and register them in the `CascadingElementResolver`.
-- **Custom Actions:** Expand `ActionKind` in `types/automation.ts` and implement the execution logic inside `src/automation/browser/DomRuntime.ts`.
+- **Add New Voice Endpoints:** Modify `app/routers/voice.py` in `RaspberryPiBackend`.
+- **Add New Intents:** Modify `src/orchestration/intent/RuleBasedIntentExtractor.ts` in `Voice Agent`.
+- **Improve AI Planning:** Enhance `src/orchestration/planner/AIPlanner.ts` by integrating new LLM providers or prompt chains.
+- **New Element Resolvers:** Add custom computer vision or DOM traversal strategies inside `src/automation/resolver/`.

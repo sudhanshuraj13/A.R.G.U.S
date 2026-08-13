@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
+from app.routers.ai_assistant import router as ai_assistant_router
 from app.routers.detect import router as detect_router
 from app.routers.distance import router as distance_router
 from app.routers.voice import router as voice_router
@@ -26,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(detect_router)
     app.include_router(distance_router)
     app.include_router(voice_router)
+    app.include_router(ai_assistant_router)
 
     @app.on_event("startup")
     def startup_event() -> None:

@@ -177,6 +177,72 @@
 					"path": ["voice", "status", "REPLACE_WITH_TASK_ID"]
 				}
 			}
+		},
+		{
+			"name": "AI Assistant Query",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"query\": \"What time is it?\",\n  \"speak_response\": true\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/ai/query",
+					"host": ["{{base_url}}"],
+					"path": ["ai", "query"]
+				}
+			}
+		},
+		{
+			"name": "AI Scene Description",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/ai/scene",
+					"host": ["{{base_url}}"],
+					"path": ["ai", "scene"]
+				}
+			}
+		},
+		{
+			"name": "AI Add Note",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"Remember to buy medicines\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/ai/notes",
+					"host": ["{{base_url}}"],
+					"path": ["ai", "notes"]
+				}
+			}
+		},
+		{
+			"name": "AI Get Notes",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/ai/notes",
+					"host": ["{{base_url}}"],
+					"path": ["ai", "notes"]
+				}
+			}
 		}
 	]
 }

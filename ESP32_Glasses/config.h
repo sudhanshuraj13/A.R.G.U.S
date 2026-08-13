@@ -7,13 +7,13 @@
 
 // -------------------- Wi-Fi --------------------
 // Change these to your Wi-Fi/hotspot details.
-#define WIFI_SSID       "YOUR_WIFI_NAME"
-#define WIFI_PASSWORD   "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID       "Poco M7 Pro"
+#define WIFI_PASSWORD   "gurkirat1234"
 
 // -------------------- Raspberry Pi --------------------
 // Find the Pi's IP using:
 // hostname -I
-#define PI_SERVER_IP    "192.168.1.100"
+#define PI_SERVER_IP    "10.28.160.146"
 
 // Port used by the Raspberry Pi server
 #define PI_SERVER_PORT  8000
@@ -31,15 +31,15 @@
 // Button 2 = Currency detection
 // Button 3 = AI / scene assistance
 
-#define BUTTON_1_PIN  -1
-#define BUTTON_2_PIN  -1
-#define BUTTON_3_PIN  -1
+#define BUTTON_1_PIN  12
+#define BUTTON_2_PIN  13
+#define BUTTON_3_PIN  14
 
 // -------------------- Ultrasonic Sensor --------------------
 // Replace these once you know the GPIOs.
 
-#define ULTRASONIC_TRIG_PIN  -1
-#define ULTRASONIC_ECHO_PIN  -1
+#define ULTRASONIC_TRIG_PIN  17
+#define ULTRASONIC_ECHO_PIN  16
 
 // Distance at which an obstacle warning should occur
 #define OBSTACLE_DISTANCE_CM  80

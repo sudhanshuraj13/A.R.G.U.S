@@ -4,6 +4,10 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
+void APIClient::begin() {
+    // No initialization required yet.
+}
+
 String APIClient::getEndpoint(DetectionType type) {
 
     switch (type) {
@@ -78,7 +82,7 @@ bool APIClient::sendRequest(
     http.setTimeout(15000);
 
     int responseCode = http.POST(
-        imageData,
+        const_cast<uint8_t*>(imageData),
         imageSize
     );
 

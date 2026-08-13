@@ -48,7 +48,7 @@ export function SettingsPanel() {
         </label>
         <select
           id="argus-provider"
-          className="w-full rounded-md border border-argus-line bg-white px-3 py-2 text-sm"
+          className="w-full rounded-md border border-argus-line bg-white px-3 py-2 text-sm text-black"
           value={settings.primaryProvider}
           onChange={(event) => updateProvider(event.target.value as PrimaryAIProvider)}
         >
@@ -64,7 +64,7 @@ export function SettingsPanel() {
         </label>
         <select
           id="argus-model"
-          className="w-full rounded-md border border-argus-line bg-white px-3 py-2 text-sm"
+          className="w-full rounded-md border border-argus-line bg-white px-3 py-2 text-sm text-black"
           value={settings.selectedModel}
           onChange={(event) => update({ selectedModel: event.target.value })}
         >
@@ -123,7 +123,7 @@ function SecretInput({ label, value, onChange }: SecretInputProps) {
         type="password"
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value.trim() || undefined)}
-        className="mt-1 w-full rounded-md border border-argus-line px-3 py-2 text-sm outline-none focus:border-argus-accent"
+        className="mt-1 w-full rounded-md border border-argus-line bg-white px-3 py-2 text-sm text-black outline-none focus:border-argus-accent"
         autoComplete="off"
       />
     </div>

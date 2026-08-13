@@ -18,7 +18,7 @@ unsigned long lastUltrasonicCheck = 0;
 void setup() {
     Serial.begin(SERIAL_BAUD_RATE);
     delay(100);
-    Serial.println("Guardian Eye - ESP32-CAM starting");
+    Serial.println("ARGUS - ESP32-CAM starting");
 
     wifi.begin();
     apiClient.begin();

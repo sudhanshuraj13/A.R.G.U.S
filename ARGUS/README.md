@@ -1,14 +1,14 @@
-## 👁️ GuardianEye – Smart Eyewear for the Visually Impaired
+## 👁️ ARGUS – Smart Eyewear for the Visually Impaired
 
 > An AI-powered, sensor-integrated wearable device for obstacle detection, text recognition, navigation, and real-time assistance—built to empower visually impaired individuals with safe, independent mobility.
 
 ---
 
-![GuardianEye Banner](https://img.shields.io/badge/Smart-Wearable-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Status](https://img.shields.io/badge/status-Prototype-orange)
+![ARGUS Banner](https://img.shields.io/badge/Smart-Wearable-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Status](https://img.shields.io/badge/status-Prototype-orange)
 
 ## 🔍 Overview
 
-**GuardianEye** is a multi-sensory smart eyewear system designed to assist visually impaired individuals in navigating their surroundings confidently and independently. By combining advanced **AI**, **computer vision**, and **sensor fusion**, the device offers:
+**ARGUS** is a multi-sensory smart eyewear system designed to assist visually impaired individuals in navigating their surroundings confidently and independently. By combining advanced **AI**, **computer vision**, and **sensor fusion**, the device offers:
 
 - Real-time **obstacle detection**
 - **Currency note recognition**

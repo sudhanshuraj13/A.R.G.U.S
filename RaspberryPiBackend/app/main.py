@@ -11,14 +11,14 @@ from app.services.detectors import load_models
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Guardian Eye Raspberry Pi Backend", version="1.0.0")
+    app = FastAPI(title="ARGUS Raspberry Pi Backend", version="1.0.0")
     app.include_router(detect_router)
     app.include_router(distance_router)
 
     @app.on_event("startup")
     def startup_event() -> None:
         load_models()
-        print("Guardian Eye backend started")
+        print("ARGUS backend started")
         print(f"Object model path: {settings.object_model_path}")
         print(f"Currency model path: {settings.currency_model_path}")
 

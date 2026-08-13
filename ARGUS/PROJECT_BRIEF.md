@@ -1,6 +1,7 @@
 # ARGUS Smart Eyewear – Project Brief & Discussion Prompt
 
 ## 🎯 Project Goal
+
 Build an AI-powered smart eyewear device that helps visually impaired users navigate independently by detecting obstacles, reading text, recognizing currency, and providing real-time voice feedback.
 
 ---
@@ -8,6 +9,7 @@ Build an AI-powered smart eyewear device that helps visually impaired users navi
 ## 📋 What We Have (Current State)
 
 ### Hardware
+
 - **Raspberry Pi** – main processor/coordinator
 - **ESP32 #1** – connected to a camera (vision input)
 - **ESP32 #2** – connected to an ultrasonic sensor (distance/obstacle detection)
@@ -15,13 +17,15 @@ Build an AI-powered smart eyewear device that helps visually impaired users navi
 - **Output devices** – (assumed) speaker, buzzer, or haptic vibration motor (to be confirmed)
 
 ### Software
+
 - **Two standalone Python scripts** on the current repo:
-  1. `object detection.py` – YOLOv8 model detecting objects from webcam in real-time
-  2. `currency notes.py` – YOLOv5 model (custom-trained) detecting currency from webcam
+    1. `object detection.py` – YOLOv8 model detecting objects from webcam in real-time
+    2. `currency notes.py` – YOLOv5 model (custom-trained) detecting currency from webcam
 - **Large dependency list** in `requirements.txt` (TensorFlow, PyTorch, OpenCV, FastAPI, Streamlit, etc.)
 - **README** describing the full vision but not yet implemented
 
 ### What Actually Works
+
 - Live object detection via YOLO (but only on USB webcam, not from ESP camera)
 - No integration between components
 - No audio output or voice commands
@@ -33,29 +37,34 @@ Build an AI-powered smart eyewear device that helps visually impaired users navi
 ## ❌ What's Missing (Critical Gaps)
 
 ### Core Architecture
+
 - [ ] No main application that ties all features together
 - [ ] No Pi-to-ESP communication (serial, BLE, MQTT, or WiFi)
 - [ ] No modular code structure (everything is ad-hoc scripts)
 
 ### Sensor & Hardware Integration
+
 - [ ] ESP32 camera streaming to Raspberry Pi
 - [ ] Ultrasonic sensor distance readings over serial/network
 - [ ] Microphone audio capture and processing (speech-to-text)
 - [ ] Audio/haptic/alert output control (speaker, buzzer, vibration)
 
 ### AI Features
+
 - [ ] OCR module (Tesseract) for reading printed text
 - [ ] Speech-to-text for voice commands
 - [ ] Text-to-speech for voice feedback
 - [ ] Multi-language support
 
 ### User Features
+
 - [ ] GPS tracking for caregiver monitoring
 - [ ] Emergency alert system
 - [ ] Voice command system
 - [ ] Settings/configuration management
 
 ### Infrastructure
+
 - [ ] Test suite
 - [ ] Deployment scripts
 - [ ] Hardware setup documentation
@@ -96,45 +105,49 @@ Build an AI-powered smart eyewear device that helps visually impaired users navi
 ## ❓ Key Questions to Resolve
 
 ### Hardware & Connectivity
+
 1. How will the Raspberry Pi communicate with the two ESP32 boards?
-   - Serial (USB/UART)?
-   - WiFi (AP mode or same network)?
-   - Bluetooth Low Energy (BLE)?
-   - Other protocol?
+    - Serial (USB/UART)?
+    - WiFi (AP mode or same network)?
+    - Bluetooth Low Energy (BLE)?
+    - Other protocol?
 
 2. What audio output hardware is available?
-   - Speaker (bone conduction or regular)?
-   - Buzzer for alerts?
-   - Haptic vibration motor?
+    - Speaker (bone conduction or regular)?
+    - Buzzer for alerts?
+    - Haptic vibration motor?
 
 3. Is the microphone connected directly to the Pi, or to one of the ESPs?
 
 4. What power management is needed? Battery? How long should it run?
 
 ### Software Architecture
+
 5. Should we use a monolithic app or microservices (e.g., one process per sensor)?
 
 6. What real-time OS or framework should run on the Pi?
-   - Bare Python with threading?
-   - ROS (Robot Operating System)?
-   - FastAPI with async workers?
+    - Bare Python with threading?
+    - ROS (Robot Operating System)?
+    - FastAPI with async workers?
 
 7. Should the ESPs do any onboard processing, or just stream raw sensor data to the Pi?
 
 ### AI & Features (Priority Order)
+
 8. What is the MVP (Minimum Viable Product)?
-   - Just obstacle detection?
-   - Obstacle + currency?
-   - Obstacle + OCR + voice?
+    - Just obstacle detection?
+    - Obstacle + currency?
+    - Obstacle + OCR + voice?
 
 9. Where should AI models run?
-   - Only on the Pi (simpler, but slower)?
-   - Distributed (some on ESPs, some on Pi)?
-   - Cloud inference (requires internet, may not be reliable)?
+    - Only on the Pi (simpler, but slower)?
+    - Distributed (some on ESPs, some on Pi)?
+    - Cloud inference (requires internet, may not be reliable)?
 
 10. Multi-language support – which languages are most important?
 
 ### Deployment & Operation
+
 11. How will users set this up?
     - Plug and play?
     - Configuration file?
@@ -147,22 +160,26 @@ Build an AI-powered smart eyewear device that helps visually impaired users navi
 ## 🚀 Suggested Next Steps (In Priority Order)
 
 ### Phase 1: Get Hardware Talking (Week 1-2)
+
 1. Define ESP ↔ Pi communication protocol (simple JSON over serial or MQTT)
 2. Write basic ESP32 firmware to read camera and ultrasonic, send data to Pi
 3. Write Pi receiver code to read and parse ESP messages
 4. Verify data flow (live prints showing distance, image frames)
 
 ### Phase 2: Integrate AI (Week 2-3)
+
 5. Move existing YOLO scripts to Pi and adapt to ESP camera stream (not USB webcam)
 6. Set up OCR module (Tesseract) on Pi
 7. Test full AI pipeline with real sensor data
 
 ### Phase 3: Add Voice & Alerts (Week 3-4)
+
 8. Integrate text-to-speech (pyttsx3 or cloud API)
 9. Wire up microphone for basic voice commands
 10. Add buzzer/speaker output control
 
 ### Phase 4: Full Integration & Testing (Week 4+)
+
 11. Build main app that orchestrates all components
 12. Implement caregiver tracking (GPS + cloud upload)
 13. Write comprehensive tests

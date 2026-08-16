@@ -51,7 +51,7 @@ DEFAULT_OVERLAP = 0.30
 SPEECH_COOLDOWN = 2.0
 
 # Camera settings
-CAMERA_TIMEOUT = 30
+CAMERA_TIMEOUT = 60
 MAX_CAMERA_FAILURES = 10
 
 
@@ -85,7 +85,7 @@ def parse_args():
     parser.add_argument(
         "--api-key",
         type=str,
-        default=os.getenv("ROBOFLOW_API_KEY", ""),
+        default=os.getenv("ROBOFLOW_API_KEY", "MUhzO2m5yQfV2iVKI6og"),
         help="Roboflow API key (or set ROBOFLOW_API_KEY env var)"
     )
 
@@ -261,7 +261,7 @@ def detect_objects_cloud(jpeg_bytes, api_key, model_id, confidence, overlap):
             params=params,
             data=image_b64,
             headers=headers,
-            timeout=30,
+            timeout=60,
         )
 
         if response.status_code != 200:

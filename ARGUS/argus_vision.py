@@ -13,7 +13,7 @@ from ultralytics import YOLO
 # ============================================================
 
 # ESP32-CAM capture endpoint
-ESP32_CAPTURE_URL = "http://10.28.160.202/capture"
+ESP32_CAPTURE_URL = "http://10.153.149.202/capture"
 
 # Path to your custom YOLO model
 # Example:

@@ -33,7 +33,7 @@ import requests
 # ============================================================
 
 # ESP32-CAM capture endpoint
-DEFAULT_ESP32_URL = "http://10.28.160.202/capture"
+DEFAULT_ESP32_URL = "http://10.25.38.202/capture"
 
 # Roboflow API
 ROBOFLOW_INFER_URL = "https://detect.roboflow.com"

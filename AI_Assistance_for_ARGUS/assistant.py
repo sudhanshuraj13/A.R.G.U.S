@@ -1,8 +1,8 @@
 """
-ARGUS Assistant Engine
-Core AI assistant with intent classification and response routing.
-
-Uses Kimi K2 for both text responses and vision understanding.
+ARGUS Supervisor Agent Engine
+Acts as the central Supervisor Agent routing user queries to specialized subagents:
+  1. Vision Subagent       → ESP32-CAM + Llama 3.2 Vision (for scene/visual queries)
+  2. Conversational Subagent → Llama 3.2 Text Instruct + Memory (for day-to-day chat, notes, time, date)
 """
 
 import re
@@ -92,31 +92,36 @@ class AssistantEngine:
 
         return "general"
 
-    # ── Main Processing ──────────────────────────────────
+    # ── Supervisor Agent Routing ─────────────────────────
 
     def process(self, query: str) -> Tuple[str, str, Optional[object]]:
         """
-        Process a user query and return the response.
+        Supervisor Agent main entry point:
+        Analyzes intent and delegates query to the appropriate subagent.
 
         Returns:
             Tuple of (response_text, intent_type, extra_data).
-            extra_data is a PIL Image for scene intents, else None.
         """
         if not query or not query.strip():
             return "I didn't catch that. Could you please repeat?", "empty", None
 
         intent = self.classify_intent(query)
 
-        handlers = {
-            "scene": self._handle_scene,
-            "note": self._handle_note,
-            "time": self._handle_time,
-            "date": self._handle_date,
-            "general": self._handle_general,
-        }
-
-        handler = handlers.get(intent, self._handle_general)
-        return handler(query)
+        if intent == "scene":
+            print("  🤖 [Supervisor Agent] -> Delegating to Vision Subagent (Llama 3.2 Vision + ESP32-CAM)")
+            return self._handle_scene(query)
+        elif intent == "note":
+            print("  🤖 [Supervisor Agent] -> Delegating to Memory Subagent (Note Taking)")
+            return self._handle_note(query)
+        elif intent == "time":
+            print("  🤖 [Supervisor Agent] -> Delegating to Clock Tool (Time)")
+            return self._handle_time(query)
+        elif intent == "date":
+            print("  🤖 [Supervisor Agent] -> Delegating to Clock Tool (Date)")
+            return self._handle_date(query)
+        else:
+            print("  🤖 [Supervisor Agent] -> Delegating to Conversational Subagent (Llama 3.2 Chat)")
+            return self._handle_general(query)
 
     # ── Text Generation ──────────────────────────────────
 
@@ -129,8 +134,8 @@ class AssistantEngine:
                     {"role": "system", "content": ASSISTANT_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=250,
-                temperature=0.7,
+                max_tokens=40,
+                temperature=0.5,
             )
             answer = response.choices[0].message.content.strip()
             if answer:

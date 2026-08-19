@@ -52,35 +52,32 @@ def play_audio(audio_bytes: bytes) -> None:
     if not audio_bytes:
         return
 
-    tmp_path = os.path.join(tempfile.gettempdir(), "argus_tts.mp3")
+    tmp_filename = f"argus_tts_{int(time.time()*1000)}.mp3"
+    tmp_path = os.path.join(tempfile.gettempdir(), tmp_filename)
     try:
         with open(tmp_path, "wb") as f:
             f.write(audio_bytes)
 
         if sys.platform == "linux":
-            # Try mpv first (lightweight), fall back to ffplay
             for player in ["mpv --no-video", "ffplay -nodisp -autoexit"]:
-                cmd = f"{player} {tmp_path}"
+                cmd = f"{player} \"{tmp_path}\""
                 result = subprocess.run(
                     cmd, shell=True,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 )
                 if result.returncode == 0:
                     return
-            # Last resort: aplay (won't play MP3, but covers WAV fallback)
             subprocess.run(
                 ["aplay", tmp_path],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
         elif sys.platform == "win32":
             abs_path = os.path.abspath(tmp_path).replace("/", "\\")
+            alias_name = f"my_audio_{int(time.time()*1000)}"
             try:
-                # Open audio device
-                ctypes.windll.winmm.mciSendStringW(f'open "{abs_path}" type mpegvideo alias my_audio', None, 0, 0)
-                # Play audio and wait until finished
-                ctypes.windll.winmm.mciSendStringW('play my_audio wait', None, 0, 0)
-                # Close audio device
-                ctypes.windll.winmm.mciSendStringW('close my_audio', None, 0, 0)
+                ctypes.windll.winmm.mciSendStringW(f'open "{abs_path}" type mpegvideo alias {alias_name}', None, 0, 0)
+                ctypes.windll.winmm.mciSendStringW(f'play {alias_name} wait', None, 0, 0)
+                ctypes.windll.winmm.mciSendStringW(f'close {alias_name}', None, 0, 0)
             except Exception as e:
                 print(f"[Audio] Native Windows playback failed: {e}")
         elif sys.platform == "darwin":
@@ -89,7 +86,9 @@ def play_audio(audio_bytes: bytes) -> None:
         print(f"[Audio] Playback failed: {e}")
     finally:
         try:
-            os.remove(tmp_path)
+            time.sleep(0.1)
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
         except OSError:
             pass
 
@@ -141,29 +140,28 @@ def wait_for_trigger():
 # ═══════════════════════════════════════════════════════
 def run_interaction(assistant: AssistantEngine, speech: SpeechManager):
     """Execute one full interaction cycle: listen → process → speak."""
-    # Step 1: Listen for voice input
-    print("\n🎤 Listening... Speak now!")
-    speak(speech, "I'm listening.")
+    print("\n🎤 Listening... Speak into your laptop microphone now!")
+    # (Do not play TTS right here to avoid speaker feedback into mic)
 
     transcript, error = speech.listen()
 
-    if error:
-        print(f"  ⚠️  {error}")
-        speak(speech, "Sorry, I didn't catch that. Please try again.")
-        return
+    if error or not transcript:
+        print(f"  ⚠️  Microphone silent/timed out: {error if error else 'No speech detected'}")
+        print("  ⌨️  Fallback: Type your command below.")
+        text_input = input("  💬 Type command (or press Enter for 'describe the scene'): ").strip()
+        if not text_input:
+            text_input = "describe the scene"
+        transcript = text_input
 
-    if not transcript:
-        speak(speech, "I didn't hear anything. Please try again.")
-        return
-
-    print(f"  🗣️  You said: \"{transcript}\"")
+    print(f"  🗣️  Query: \"{transcript}\"")
 
     # Step 2: Process through assistant
-    print("  🧠 Processing...")
+    print("  🧠 Processing with Llama 3.2 Vision...")
     start = time.time()
     response, intent, _extra = assistant.process(transcript)
     elapsed = time.time() - start
     print(f"  ✅ Intent: {intent} | Response time: {elapsed:.1f}s")
+    print(f"  💬 Response: {response}")
 
     # Step 3: Speak the response
     speak(speech, response)

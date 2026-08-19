@@ -33,7 +33,7 @@ import requests
 # ============================================================
 
 # ESP32-CAM capture endpoint
-DEFAULT_ESP32_URL = "http://10.25.38.202/capture"
+DEFAULT_ESP32_URL = "http://10.133.35.202/capture"
 
 # Roboflow API
 ROBOFLOW_INFER_URL = "https://detect.roboflow.com"
@@ -51,7 +51,7 @@ DEFAULT_OVERLAP = 0.30
 SPEECH_COOLDOWN = 2.0
 
 # Camera settings
-CAMERA_TIMEOUT = 60
+CAMERA_TIMEOUT = 5.0
 MAX_CAMERA_FAILURES = 10
 
 
@@ -124,9 +124,16 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--no-speech",
+        "--trigger",
         action="store_true",
-        help="Disable text-to-speech output"
+        default=True,
+        help="On-demand single snapshot mode on Enter keypress (default: True, prevents ESP32 web server overload)"
+    )
+
+    parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help="Run continuous streaming loop (may overload ESP32-CAM Wi-Fi)"
     )
 
     return parser.parse_args()
@@ -261,7 +268,7 @@ def detect_objects_cloud(jpeg_bytes, api_key, model_id, confidence, overlap):
             params=params,
             data=image_b64,
             headers=headers,
-            timeout=60,
+            timeout=120,
         )
 
         if response.status_code != 200:
@@ -554,15 +561,29 @@ def main():
     )
 
     # ----------------------------------------------------------
-    # Detection loop
+    # Detection loop (On-Demand Trigger or Continuous)
     # ----------------------------------------------------------
 
     camera_failures = 0
     frame_count = 0
+    is_continuous = args.continuous
+
+    if not is_continuous:
+        print("--------------------------------------------------")
+        print("💡 ON-DEMAND MODE ENABLED (matches AI_Assistance)")
+        print("   Press [Enter] to capture a snapshot & detect objects.")
+        print("   Type 'q' and press [Enter] to quit.")
+        print("--------------------------------------------------")
 
     try:
 
         while True:
+
+            if not is_continuous:
+                user_input = input("\n⏳ Press [Enter] to capture image (or 'q' to quit): ").strip().lower()
+                if user_input == 'q':
+                    print("[INFO] Exiting ARGUS...")
+                    break
 
             # --------------------------------------------------
             # Get frame
@@ -582,12 +603,13 @@ def main():
                 if camera_failures >= MAX_CAMERA_FAILURES:
 
                     print(
-                        "[ERROR] Too many camera failures."
+                        "[ERROR] Too many camera failures. Please check ESP32 connection."
                     )
 
                     break
 
-                time.sleep(0.5)
+                if is_continuous:
+                    time.sleep(0.5)
 
                 continue
 
@@ -616,13 +638,15 @@ def main():
             # Print detections
             # --------------------------------------------------
 
-            for detection in detections:
-
-                print(
-                    f"[DETECTION] "
-                    f"{detection['class_name']} "
-                    f"({detection['confidence']:.2f})"
-                )
+            if detections:
+                for detection in detections:
+                    print(
+                        f"[DETECTION] "
+                        f"{detection['class_name']} "
+                        f"({int(detection['confidence'] * 100)}%)"
+                    )
+            else:
+                print("[INFO] No objects detected in this snapshot.")
 
             # --------------------------------------------------
             # Speech
@@ -641,8 +665,8 @@ def main():
                     frame
                 )
 
-                # Press Q to quit
-                key = cv2.waitKey(1) & 0xFF
+                # Press Q in window or keypress
+                key = cv2.waitKey(500 if not is_continuous else 1) & 0xFF
 
                 if key == ord("q"):
 

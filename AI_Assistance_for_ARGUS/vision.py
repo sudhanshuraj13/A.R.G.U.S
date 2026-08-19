@@ -251,8 +251,8 @@ class VisionModule:
                         ],
                     }
                 ],
-                max_tokens=512,
-                temperature=0.4,
+                max_tokens=80,
+                temperature=0.3,
             )
             t_api = time.time() - t0
             print(f"    [Vision] Llama API request took {t_api:.2f}s")

@@ -62,7 +62,6 @@
 //IPAddress subnet(255, 255, 255, 0);
 //IPAddress primaryDNS(8, 8, 8, 8);
 //IPAddress secondaryDNS(8, 8, 4, 4);
-
 // Camera quality settings (tune for speed vs quality)
 #define FRAME_SIZE      FRAMESIZE_VGA   // QVGA/CIF/VGA/SVGA/XGA/SXGA/UXGA
 #define JPEG_QUALITY    12              // 0-63, lower = higher quality

@@ -40,14 +40,31 @@ class SpeechManager:
 
     # ── Speech-to-Text ───────────────────────────────────
 
+    @staticmethod
+    def get_laptop_mic_index() -> Optional[int]:
+        """Find the index of the laptop's built-in microphone array or realtek mic."""
+        try:
+            names = sr.Microphone.list_microphone_names()
+            for idx, name in enumerate(names):
+                n = name.lower()
+                if "microphone array" in n or "realtek" in n or "intel" in n or "default" in n:
+                    return idx
+        except Exception:
+            pass
+        return None
+
     def listen(self) -> Tuple[Optional[str], Optional[str]]:
         """
         Listen for speech via the system microphone.
         Returns (transcript, error_message). One will always be None.
         """
         try:
-            with sr.Microphone() as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            mic_idx = self.get_laptop_mic_index()
+            mic_kwargs = {"device_index": mic_idx} if mic_idx is not None else {}
+
+            with sr.Microphone(**mic_kwargs) as source:
+                # Do NOT block with adjust_for_ambient_noise inside the loop 
+                # as it clips the first spoken word. Use fast dynamic threshold instead.
                 audio = self.recognizer.listen(
                     source,
                     timeout=self.listen_timeout,

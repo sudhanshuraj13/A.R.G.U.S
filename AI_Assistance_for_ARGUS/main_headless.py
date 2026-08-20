@@ -148,15 +148,15 @@ def run_interaction(assistant: AssistantEngine, speech: SpeechManager):
     if error or not transcript:
         print(f"  ⚠️  Microphone silent/timed out: {error if error else 'No speech detected'}")
         print("  ⌨️  Fallback: Type your command below.")
-        text_input = input("  💬 Type command (or press Enter for 'describe the scene'): ").strip()
+        text_input = input("  💬 Type command (or press Enter for 'How are you today?'): ").strip()
         if not text_input:
-            text_input = "describe the scene"
+            text_input = "How are you today?"
         transcript = text_input
 
     print(f"  🗣️  Query: \"{transcript}\"")
 
-    # Step 2: Process through assistant
-    print("  🧠 Processing with Llama 3.2 Vision...")
+    # Step 2: Process through LangGraph Multi-Agent Assistant
+    print("  🧠 Processing with LangGraph Multi-Agent Engine...")
     start = time.time()
     response, intent, _extra = assistant.process(transcript)
     elapsed = time.time() - start

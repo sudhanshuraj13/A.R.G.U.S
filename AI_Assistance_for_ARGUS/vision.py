@@ -35,6 +35,7 @@ except ImportError:
 # Import config
 from config import (
     KIMI_API_KEY, KIMI_VISION_MODEL, KIMI_BASE_URL, SCENE_PROMPT,
+    CURRENCY_PROMPT, OCR_PROMPT, OBJECT_PROMPT,
     IMAGE_MAX_SIZE, ESP32_CAM_URL,
 )
 
@@ -280,3 +281,38 @@ class VisionModule:
             f"and immediately helpful. Mention positions (left, right, ahead) when relevant."
         )
         return self.describe_scene(frame=frame, custom_prompt=augmented_prompt)
+
+    def detect_currency(
+        self, question: str = "", frame=None
+    ) -> Tuple[str, Optional[Image.Image]]:
+        """Identify Indian currency notes and coins in the frame."""
+        prompt = (
+            f"{CURRENCY_PROMPT}\n\n"
+            f"User asked: \"{question}\"\n"
+            f"Inspect the image for Indian currency notes (₹10, ₹20, ₹50, ₹100, ₹200, ₹500) and coins (₹1, ₹2, ₹5, ₹10, ₹20). "
+            f"State the denomination and count clearly."
+        ) if question else CURRENCY_PROMPT
+        return self.describe_scene(frame=frame, custom_prompt=prompt)
+
+    def read_text_ocr(
+        self, question: str = "", frame=None
+    ) -> Tuple[str, Optional[Image.Image]]:
+        """Read text, signs, labels, or documents in the frame (OCR)."""
+        prompt = (
+            f"{OCR_PROMPT}\n\n"
+            f"User asked: \"{question}\"\n"
+            f"Read and transcribe the key text visible in this image clearly."
+        ) if question else OCR_PROMPT
+        return self.describe_scene(frame=frame, custom_prompt=prompt)
+
+    def detect_objects(
+        self, question: str = "", frame=None
+    ) -> Tuple[str, Optional[Image.Image]]:
+        """Detect specific objects and report spatial locations (left, right, ahead)."""
+        prompt = (
+            f"{OBJECT_PROMPT}\n\n"
+            f"User asked: \"{question}\"\n"
+            f"List key objects and their relative locations."
+        ) if question else OBJECT_PROMPT
+        return self.describe_scene(frame=frame, custom_prompt=prompt)
+

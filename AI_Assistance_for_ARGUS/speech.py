@@ -42,12 +42,22 @@ class SpeechManager:
 
     @staticmethod
     def get_laptop_mic_index() -> Optional[int]:
-        """Find the index of the laptop's built-in microphone array or realtek mic."""
+        """Find the index of the laptop's active built-in microphone."""
+        try:
+            import pyaudio
+            p = pyaudio.PyAudio()
+            info = p.get_default_input_device_info()
+            p.terminate()
+            if info and "index" in info:
+                return int(info["index"])
+        except Exception:
+            pass
+
         try:
             names = sr.Microphone.list_microphone_names()
             for idx, name in enumerate(names):
                 n = name.lower()
-                if "microphone array" in n or "realtek" in n or "intel" in n or "default" in n:
+                if "microphone array" in n or "realtek" in n or "intel" in n:
                     return idx
         except Exception:
             pass

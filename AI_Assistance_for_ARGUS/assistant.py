@@ -29,19 +29,33 @@ class AssistantEngine:
     """
 
     # Intent keywords for classification
+    NOTE_KEYWORDS = [
+        "take a note", "note down", "save a note", "make a note",
+        "remember that", "remember to", "remember", "remind me", "write down",
+        "jot down", "record that", "save that", "meeting at", "appointment",
+    ]
+    CURRENCY_KEYWORDS = [
+        "currency", "money", "rupee", "rupees", "cash", "banknote", "bank note",
+        "currency note", "rupee note", "coin", "how much money", "which note",
+        "what note", "what coin", "bill",
+    ]
+    OCR_KEYWORDS = [
+        "read text", "read this", "read signboard", "signboard", "read sign", "read label",
+        "what does it say", "read document", "read paper", "read words", "read text on",
+    ]
+    OBJECT_KEYWORDS = [
+        "find object", "find my", "where is", "locate", "object detection",
+        "detect objects", "what objects", "where is the",
+    ]
     SCENE_KEYWORDS = [
         "describe", "surroundings", "around me", "in front of me",
         "what do you see", "what can you see", "see anything",
         "look around", "scene", "environment", "what is ahead",
         "dangerous", "hazard", "obstacle", "navigate", "where am i",
     ]
-    NOTE_KEYWORDS = [
-        "take a note", "note down", "save a note", "make a note",
-        "remember that", "remember to", "remind me", "write down",
-        "jot down", "record that", "save that",
-    ]
     TIME_KEYWORDS = ["what time", "current time", "tell me the time", "what's the time"]
-    DATE_KEYWORDS = ["what date", "today's date", "what day", "tell me the date", "what's the date", "today is"]
+    DATE_KEYWORDS = ["what date", "today's date", "what day", "tell me the date", "what's the date", "today is", "date today", "date"]
+
 
     def __init__(
         self,
@@ -68,21 +82,38 @@ class AssistantEngine:
                 "KIMI_API_KEY must be set for the assistant to work."
             )
 
+        # Initialize LangGraph StateGraph
+        try:
+            from agent_graph import build_argus_graph
+            self.graph = build_argus_graph(self)
+        except Exception as e:
+            print(f"[AssistantEngine] LangGraph init notice: {e}")
+            self.graph = None
+
     # ── Intent Classification ────────────────────────────
 
     def classify_intent(self, query: str) -> str:
         """
-        Classify user query into one of: scene, note, time, date, general.
+        Classify user query into one of: note, currency, ocr, object, scene, time, date, general.
         Uses keyword matching for speed and reliability.
         """
         q = query.lower().strip()
 
-        for keyword in self.SCENE_KEYWORDS:
-            if keyword in q:
-                return "scene"
         for keyword in self.NOTE_KEYWORDS:
             if keyword in q:
                 return "note"
+        for keyword in self.CURRENCY_KEYWORDS:
+            if keyword in q:
+                return "currency"
+        for keyword in self.OCR_KEYWORDS:
+            if keyword in q:
+                return "ocr"
+        for keyword in self.OBJECT_KEYWORDS:
+            if keyword in q:
+                return "object"
+        for keyword in self.SCENE_KEYWORDS:
+            if keyword in q:
+                return "scene"
         for keyword in self.TIME_KEYWORDS:
             if keyword in q:
                 return "time"
@@ -92,12 +123,14 @@ class AssistantEngine:
 
         return "general"
 
-    # ── Supervisor Agent Routing ─────────────────────────
+
+
+    # ── Supervisor Agent Routing (LangGraph) ──────────────
 
     def process(self, query: str) -> Tuple[str, str, Optional[object]]:
         """
         Supervisor Agent main entry point:
-        Analyzes intent and delegates query to the appropriate subagent.
+        Executes query through the LangGraph StateGraph workflow.
 
         Returns:
             Tuple of (response_text, intent_type, extra_data).
@@ -105,23 +138,44 @@ class AssistantEngine:
         if not query or not query.strip():
             return "I didn't catch that. Could you please repeat?", "empty", None
 
-        intent = self.classify_intent(query)
+        # Execute through LangGraph StateGraph if available
+        if self.graph:
+            initial_state = {
+                "user_query": query,
+                "intent": "general",
+                "pil_image": None,
+                "response": "",
+                "history": [],
+                "error": None,
+            }
+            try:
+                final_state = self.graph.invoke(initial_state)
+                response = final_state.get("response", "")
+                intent = final_state.get("intent", "general")
+                pil_image = final_state.get("pil_image", None)
+                return response, intent, pil_image
+            except Exception as e:
+                print(f"[LangGraph] Execution fallback: {e}")
 
-        if intent == "scene":
-            print("  🤖 [Supervisor Agent] -> Delegating to Vision Subagent (Llama 3.2 Vision + ESP32-CAM)")
+        # Fallback direct routing
+        intent = self.classify_intent(query)
+        if intent == "currency":
+            return self._handle_currency(query)
+        elif intent == "ocr":
+            return self._handle_ocr(query)
+        elif intent == "object":
+            return self._handle_object(query)
+        elif intent == "scene":
             return self._handle_scene(query)
         elif intent == "note":
-            print("  🤖 [Supervisor Agent] -> Delegating to Memory Subagent (Note Taking)")
             return self._handle_note(query)
         elif intent == "time":
-            print("  🤖 [Supervisor Agent] -> Delegating to Clock Tool (Time)")
             return self._handle_time(query)
         elif intent == "date":
-            print("  🤖 [Supervisor Agent] -> Delegating to Clock Tool (Date)")
             return self._handle_date(query)
         else:
-            print("  🤖 [Supervisor Agent] -> Delegating to Conversational Subagent (Llama 3.2 Chat)")
             return self._handle_general(query)
+
 
     # ── Text Generation ──────────────────────────────────
 
@@ -159,6 +213,49 @@ class AssistantEngine:
         except Exception as e:
             print(f"[AssistantEngine] Scene error: {e}")
             return f"Error occurred: {str(e)}", "scene", None
+
+    def _handle_currency(self, query: str) -> Tuple[str, str, Optional[object]]:
+        """Handle Indian currency detection subagent requests."""
+        if not self.vision:
+            return "Sorry, the camera system is not available right now.", "currency", None
+        try:
+            description, pil_image = self.vision.detect_currency(query)
+            self.memory.add_interaction(query, description)
+            return description, "currency", pil_image
+        except RuntimeError:
+            return "Sorry, I can't access the camera right now. Please check the connection.", "currency", None
+        except Exception as e:
+            print(f"[AssistantEngine] Currency detection error: {e}")
+            return f"Error occurred: {str(e)}", "currency", None
+
+    def _handle_ocr(self, query: str) -> Tuple[str, str, Optional[object]]:
+        """Handle Text/OCR subagent requests."""
+        if not self.vision:
+            return "Sorry, the camera system is not available right now.", "ocr", None
+        try:
+            description, pil_image = self.vision.read_text_ocr(query)
+            self.memory.add_interaction(query, description)
+            return description, "ocr", pil_image
+        except RuntimeError:
+            return "Sorry, I can't access the camera right now. Please check the connection.", "ocr", None
+        except Exception as e:
+            print(f"[AssistantEngine] OCR error: {e}")
+            return f"Error occurred: {str(e)}", "ocr", None
+
+    def _handle_object(self, query: str) -> Tuple[str, str, Optional[object]]:
+        """Handle Object Location Subagent requests."""
+        if not self.vision:
+            return "Sorry, the camera system is not available right now.", "object", None
+        try:
+            description, pil_image = self.vision.detect_objects(query)
+            self.memory.add_interaction(query, description)
+            return description, "object", pil_image
+        except RuntimeError:
+            return "Sorry, I can't access the camera right now. Please check the connection.", "object", None
+        except Exception as e:
+            print(f"[AssistantEngine] Object detection error: {e}")
+            return f"Error occurred: {str(e)}", "object", None
+
 
     def _handle_note(self, query: str) -> Tuple[str, str, None]:
         """Handle note-taking requests."""

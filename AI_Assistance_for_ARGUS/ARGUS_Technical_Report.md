@@ -1,119 +1,145 @@
 # ARGUS — System Architecture & Technical Report
 
-**Project Name:** ARGUS (AI-Powered Responsive Glasses for Uplifting the Blind in Society)
-**Document Type:** Technical Architecture & Implementation Report
-**Date:** May 18, 2026
+**Project Name:** ARGUS (AI-Powered Responsive Glasses for Uplifting the Blind in Society)  
+**Document Type:** Technical Architecture & Implementation Report  
+**Last Updated:** August 20, 2026  
+**Original Report Date:** May 18, 2026  
 
 ---
 
 ## 1. Executive Summary
 
-ARGUS is an AI-assisted smart glasses prototype designed to empower visually impaired individuals by providing real-time environmental understanding and a conversational voice assistant. The current iteration serves as a Capstone Project Prototype, utilizing standard laptop hardware (webcam, microphone, and speakers) to simulate the eventual wearable hardware experience (e.g., Raspberry Pi-based smart glasses). 
+ARGUS is an AI-assisted smart glasses prototype designed to empower visually impaired individuals by providing real-time environmental understanding, physical obstacle detection, and a warm, conversational AI companion with persistent note-taking memory.
 
-The system provides two primary capabilities:
-1. **Instant Scene Description:** Capturing the user's surroundings and using advanced Vision Language Models (VLMs) to audibly describe objects, hazards, people, and spatial relationships.
-2. **AI Voice Assistant:** A robust conversational agent capable of answering general knowledge queries, managing persistent notes, and checking the time and date.
+The system combines physical wearable hardware (ESP32-CAM, TFmini Plus LiDAR sensor, haptic vibration alert) with an advanced **LangGraph Multi-Agent AI system** running on a companion device (laptop or Raspberry Pi).
+
+### Core Capabilities
+1. 👁️ **Visual Perception & Scene Description:** Captures the user's surroundings on demand and uses Vision Language Models (VLMs) to audibly describe objects, hazards, people, and spatial relationships in 1–2 concise spoken sentences.
+2. 🗣️ **AI Voice Companion:** A warm, empathetic conversational agent powered by Llama 3.2 that answers day-to-day life questions and engages in natural conversation.
+3. 📝 **Note-Taking & Memory Subagent:** Allows visually impaired users to say *"Remember tomorrow is my meeting at 10 am"* or *"Take a note..."*, automatically parsing and persisting notes to a local JSON file (`argus_notes.json`) with exact timestamps for future cron/database notification integration.
+4. 📏 **LiDAR Laser Obstacle Detection & Haptic Feedback:** Uses a laser distance sensor to detect physical obstacles up to 12 meters away, triggering proportional vibration/audio alerts that pulse faster as obstacles get closer.
 
 ---
 
 ## 2. Technology Stack
 
-The project leverages a modern, lightweight Python ecosystem, combining web frameworks with powerful AI APIs and local hardware integrations.
-
-### Core Technologies
-*   **Language:** Python 3.9+
-*   **User Interface:** [Streamlit](https://streamlit.io/) (`streamlit>=1.28.0`) - Used for the main application interface, state management, and real-time interaction.
-*   **AI Engine (Text & Vision):** Llama 3.2 90B Vision Instruct, accessed via the **NVIDIA NIM API** (Kimi K2).
-*   **API Client:** OpenAI Python SDK (`openai>=1.0.0`) - Used for communicating with the NVIDIA NIM API (as it provides an OpenAI-compatible endpoint).
+### Core AI & Multi-Agent Framework
+* **Language:** Python 3.9+
+* **Multi-Agent Orchestration:** [LangGraph](https://github.com/langchain-ai/langgraph) (`langgraph>=1.2.0`, `langchain-core>=1.6.0`) — Manages the state machine graph (`StateGraph`) connecting the Supervisor Agent and specialized subagents.
+* **AI Models (NVIDIA NIM API):**
+  * **Conversational Agent:** Meta Llama 3.2 3B Instruct (`meta/llama-3.2-3b-instruct`)
+  * **Vision Agent:** Meta Llama 3.2 11B Vision (`meta/llama-3.2-11b-vision-instruct`)
+* **API Client:** OpenAI Python SDK (`openai>=1.0.0`) via NVIDIA NIM OpenAI-compatible endpoint.
 
 ### Perception & Hardware Integration
-*   **Computer Vision:** OpenCV (`opencv-python>=4.8.0`) for webcam frame capture and buffering.
-*   **Image Processing:** Pillow (`Pillow>=10.0.0`) for image formatting, resizing, and byte conversion.
-*   **Speech-to-Text (STT):** Google Web Speech API via the `SpeechRecognition` library (`SpeechRecognition>=3.10.0`).
-*   **Text-to-Speech (TTS):** Microsoft Edge TTS via the `edge-tts` library (`edge-tts>=6.1.0`), providing natural-sounding neural voices.
-*   **Audio I/O:** PyAudio (`PyAudio>=0.2.14`) - Required backend for microphone access.
+* **Microcontroller:** ESP32-WROOM-32 DevKit & AI-Thinker ESP32-CAM.
+* **Distance Sensor:** TFmini Plus / TF-Luna LiDAR (UART serial at 115200 baud).
+* **Haptic Alert:** Disc vibration motor / audio buzzer connected to ESP32 GPIO 4 (D4).
+* **Embedded Software:** Arduino C++ (`ESP32_LiDAR.ino`, `ESP32_Glasses.ino`) hosting an `esp_http_server` REST API on Port 80.
 
-### Configuration & Data Management
-*   **Environment Variables:** `python-dotenv` for securely loading the API key (`KIMI_API_KEY`).
-*   **Data Storage:** Standard JSON for persistent, local storage of user notes.
-
----
-
-## 3. System Architecture & Module Breakdown
-
-The system is highly modularized, separating concerns into distinct Python files. 
-
-### 3.1. `main.py` (Application Entry Point)
-*   **Role:** Initializes the Streamlit UI, manages session state (`st.session_state`), and ties all modules together.
-*   **Key Responsibilities:**
-    *   Renders a custom UI with premium dark-mode CSS (gradients, glowing effects, and responsive chat bubbles).
-    *   Checks hardware availability on startup (microphone, webcam, API key).
-    *   Handles UI interactions: voice recording, text input, and scene capture buttons.
-    *   Maintains the chat history and auto-plays TTS audio.
-
-### 3.2. `assistant.py` (The "Brain")
-*   **Role:** Acts as the central routing engine for the user's queries.
-*   **Key Responsibilities:**
-    *   **Intent Classification:** Uses keyword matching to accurately and quickly route queries to specific handlers (`scene`, `note`, `time`, `date`, `general`).
-    *   **Conversational AI:** For `general` intent, it formats a prompt containing the recent conversation history (from memory) and the system persona prompt, then queries the Llama 3.2 text model.
-    *   **Action Execution:** Extracts substrings for note-taking (e.g., stripping out "remind me to...") and executes local functions (fetching time/date).
-
-### 3.3. `vision.py` (Visual Perception)
-*   **Role:** Manages camera hardware and communicates with the Vision AI model.
-*   **Key Responsibilities:**
-    *   **Webcam Capture:** Initializes `cv2.VideoCapture(0)`. Crucially, it discards the first 5 frames to allow the camera's auto-exposure/auto-focus to adjust before capturing the final frame.
-    *   **Image Optimization:** Converts the OpenCV BGR frame to a PIL RGB image, and resizes it to a maximum of 768x768 pixels. This is a critical technical detail to prevent `400 Bad Request` payload size errors from the NVIDIA API.
-    *   **Base64 Encoding:** Encodes the compressed image to base64 for HTTP transmission.
-    *   **Contextual Prompting:** Injects a specialized accessibility prompt ("You are an AI assistant... Describe this environment... Mention hazards, spatial cues...") alongside the image to Llama 3.2 Vision.
-
-### 3.4. `speech.py` (Audio I/O)
-*   **Role:** Handles all audio transcription (listening) and synthesis (speaking).
-*   **Key Responsibilities:**
-    *   **Noise Calibration:** Automatically adjusts the energy threshold for ambient noise (`adjust_for_ambient_noise`) before listening.
-    *   **Edge-TTS Integration:** Synthesizes high-quality MP3 audio bytes using Microsoft Edge TTS (defaulting to the `en-US-AriaNeural` voice).
-    *   **Thread Safety:** Because `edge-tts` is an asynchronous library and Streamlit runs its own event loop, the module safely isolates the `asyncio.run` execution in a separate background thread if it detects an already running event loop, preventing `RuntimeError: This event loop is already running`.
-
-### 3.5. `memory.py` (State & Persistence)
-*   **Role:** Manages short-term conversation context and long-term saved data.
-*   **Key Responsibilities:**
-    *   **Short-Term Memory:** Stores the conversation history (User and Assistant messages) with timestamps, maintaining a sliding window of the last 5 exchanges (10 messages) to preserve context without blowing up the LLM context window.
-    *   **Long-Term Memory:** Provides a CRUD interface for note-taking, saving user notes persistently to a local file (`argus_notes.json`).
-
-### 3.6. `config.py` (Configuration)
-*   **Role:** Centralizes all configurable parameters, prompts, and environment variable loading.
+### Speech & Audio Perception
+* **Speech-to-Text (STT):** Google Web Speech API via `SpeechRecognition` (`SpeechRecognition>=3.17.0`) + `PyAudio` (`PyAudio>=0.2.14`).
+* **Text-to-Speech (TTS):** Microsoft Edge Neural TTS via `edge-tts` (`edge-tts>=7.2.0`), using voice `en-US-AriaNeural`.
 
 ---
 
-## 4. Key Workflows & Technical Details
+## 3. Multi-Agent System Architecture (LangGraph)
 
-### Workflow A: Scene Description
-1. User clicks **"Capture & Describe Scene"** or asks *"Describe my surroundings"*.
-2. `main.py` detects the intent or button click and calls the `vision` module.
-3. `vision.py` connects to the webcam, flushes early frames, captures an image, resizes it, and encodes it.
-4. The image and a custom accessibility prompt are sent to the NVIDIA NIM API (Llama 3.2 Vision).
-5. The text description is returned to `main.py`.
-6. `main.py` passes the text to `speech.py`, which generates MP3 bytes via Edge TTS.
-7. Streamlit automatically plays the audio using `st.audio(autoplay=True)` and renders the chat bubble with the captured image.
+ARGUS is structured as a **LangGraph StateGraph Workflow**, cleanly separating intelligence into specialized agents:
 
-### Workflow B: Voice Command
-1. User clicks **"Start Listening"**.
-2. `speech.py` activates the microphone, records audio until silence is detected (or timeout), and uses Google Speech Recognition to generate a text transcript.
-3. The transcript is passed to `assistant.py`.
-4. `assistant.py` classifies the intent:
-    *   If **Note**: Extracts the payload and saves it via `memory.py` to `argus_notes.json`.
-    *   If **Time/Date**: Uses Python's `datetime` module.
-    *   If **General**: Appends memory history and queries Llama 3.2 for a response.
-5. The response is synthesized to audio and rendered in the UI.
+```
+                       ┌─────────────────────────┐
+                       │       START NODE        │
+                       └────────────┬────────────┘
+                                    │
+                                    ▼
+                       ┌─────────────────────────┐
+                       │    SUPERVISOR NODE      │
+                       │  (Intent Classifier)    │
+                       └────────────┬────────────┘
+                                    │
+                         [Conditional Router]
+                    ┌───────────────┼───────────────┐
+                    │ (scene)       │ (general)     │ (tools/note)
+                    ▼               ▼               ▼
+         ┌───────────────────┐ ┌─────────┴─────────┐ ┌───────────────────┐
+         │   VISION AGENT    │ │  CONVERSATIONAL   │ │   TOOLS/MEMORY    │
+         │ (ESP32-CAM Frame  │ │     AGENT         │ │      AGENT        │
+         │ + Llama 3.2 VLM)  │ │(Llama 3.2 3B Chat)│ │ (JSON Notes/Time) │
+         └─────────┬─────────┘ └─────────┬─────────┘ └─────────┬─────────┘
+                   │                     │                     │
+                   └─────────────────────┼─────────────────────┘
+                                         ▼
+                                ┌─────────────────┐
+                                │    END NODE     │
+                                └─────────────────┘
+```
+
+### Simple Explanation (Non-Technical)
+Imagine ARGUS as a team:
+* **The Manager (Supervisor Agent):** Listens to what you ask. 
+  * If you say *"Remember tomorrow is my meeting at 10 am"*, the Manager hands it to the **Memory Assistant**, who saves your note safely to a file.
+  * If you ask a day-to-day question like *"How are you today?"*, the Manager hands it to the **Chat Companion** without turning on the camera.
+  * If you ask a visual question like *"What is in front of me?"*, the Manager turns to the **Vision Specialist**, who looks through the glasses' camera and explains the scene.
+* **The Memory Assistant (Tools Node):** Extracts your notes and reminders (e.g. meetings, tasks) and saves them with timestamps to `argus_notes.json`.
+* **The Chat Companion (Conversational Agent):** Answers day-to-day questions naturally in 1–2 warm sentences.
+* **The Vision Specialist (Vision Agent):** Takes a photo from the glasses and describes obstacles, doors, or people.
+
+### Technical Implementation (`agent_graph.py` & `assistant.py`)
+1. **Unified Graph State (`ARGUSState`):**
+   ```python
+   class ARGUSState(TypedDict):
+       user_query: str
+       intent: str           # "scene", "general", "note", "time", "date"
+       pil_image: Optional[Image.Image]
+       response: str
+       history: List[Dict[str, Any]]
+       error: Optional[str]
+   ```
+2. **Supervisor Node:** Fast intent classification using keyword & regex matching. Sets state `intent`.
+3. **Conditional Router:** Directs execution flow:
+   - `intent == "scene"` $\rightarrow$ `vision_agent_node` (Fetches ESP32-CAM snapshot $\rightarrow$ Llama 3.2 Vision).
+   - `intent == "general"` $\rightarrow$ `conversational_agent_node` (Llama 3.2 3B Chat Instruct).
+   - `intent in ["note", "time", "date"]` $\rightarrow$ `tools_node` (Extracts note content, persists to `argus_notes.json` or fetches system datetime).
 
 ---
 
-## 5. Error Handling & Resiliency
+## 4. Hardware Architecture: LiDAR & ESP32 Integration
 
-The system is designed to fail gracefully across various failure modes:
-*   **Hardware Disconnection:** If the webcam or microphone is missing, `main.py` detects this on startup, displays a red ❌ in the sidebar, and securely disables the corresponding UI buttons to prevent crashes.
-*   **API Timeouts / Invalid Keys:** If the `KIMI_API_KEY` is missing or invalid, the system enters an "Offline Mode", informing the user without crashing the application.
-*   **Speech Recognition Failures:** Timeouts (`sr.WaitTimeoutError`) or unintelligible speech (`sr.UnknownValueError`) are caught and returned as friendly retry messages to the user.
-*   **API Payload Protection:** Proactive resizing of images prevents payload size rejections from the external LLM provider.
+### Simple Explanation (Non-Technical)
+The ARGUS glasses feature a laser distance sensor mounted on top of the frame alongside a small vibration motor:
+* **Physical Haptic Warnings:** As you walk towards an obstacle (wall, door, person), the glasses vibrate gently.
+* **Proportional Warning:** If the obstacle is 80cm away, it pulses slowly. If you get within 30cm, it vibrates continuously to alert you immediately.
+
+### Technical Specification (`ESP32_LiDAR.ino`)
+
+| Module | Wire Color | ESP32 Pin | GPIO | Function |
+| :--- | :--- | :--- | :--- | :--- |
+| **LiDAR VCC** | 🔴 Red | **VIN** (5V) | — | Sensor Power |
+| **LiDAR GND** | ⚫ Black | **GND** | — | Ground |
+| **LiDAR TX** | 🟢 Green | **RX2** | GPIO 16 | ESP32 receives distance frame |
+| **LiDAR RX** | ⚪ White | **TX2** | GPIO 17 | ESP32 sends configuration commands |
+| **Audio / Vibration (+)** | 🔴 Red | **D4** | GPIO 4 | Haptic motor control output |
+| **Audio / Vibration (-)** | 🔵 Blue | **GND** | — | Ground |
+
+* **Protocol:** Reads 9-byte binary frames from TFmini Plus over UART2 at 115200 baud (`0x59 0x59` header + distance_L + distance_H + strength + temp + checksum).
+* **REST Endpoints:**
+  * `GET /distance` $\rightarrow$ Returns JSON `{"distance_cm": 45, "strength": 1200, "temp_c": 28.5, "ok": true, "audio_alert": true}`
+  * `GET /` $\rightarrow$ Serves responsive HTML live-monitoring distance dashboard.
 
 ---
-*Generated for the ARGUS project team.*
+
+## 5. Major Updates & Fixes Log (August 20, 2026)
+
+| Feature / Issue | Description (Non-Technical) | Technical Details (Implementation) |
+| :--- | :--- | :--- |
+| **LangGraph Architecture** | Introduced a multi-agent Supervisor brain to route user questions seamlessly. | Created `agent_graph.py` with `StateGraph(ARGUSState)` compiled workflow integrated into `AssistantEngine.process()`. |
+| **JSON Note & Memory Subagent** | Saves reminders and notes (e.g. *"remember tomorrow is my meeting at 10 am"*) persistently to disk. | Integrated `MemoryManager.add_note()` into `tools_node` in `agent_graph.py`, writing to `argus_notes.json` with ISO timestamps. |
+| **On-Demand Camera Capture** | Camera takes a photo only when requested, saving battery and preventing crashes. | Replaced high-frequency continuous HTTP GET loops with single-snapshot requests (`/capture`) to prevent socket buffer overflow on ESP32. |
+| **LiDAR & Haptic Vibration** | Physical laser obstacle detection with vibrating alerts on the glasses. | Added UART2 driver for TFmini Plus LiDAR and distance-proportional PWM/pulsing on GPIO 4 (`ESP32_LiDAR.ino`). |
+| **Instant Mic Response** | Fixed audio freezing/clipping when user starts speaking. | Removed in-loop `adjust_for_ambient_noise` blocking calls in `speech.py` and auto-indexed laptop `Microphone Array` devices. |
+| **Response Latency Tuning** | Reduced AI response generation time from 15s to ~1.5s. | Downsampled image payloads to 400x300, capped Vision tokens to 80, and text tokens to 40 for concise spoken feedback. |
+
+---
+
+*Report maintained and updated for the ARGUS Project Team.*

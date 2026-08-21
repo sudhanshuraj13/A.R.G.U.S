@@ -1,47 +1,5 @@
-# Dependencies & Virtual Environments
-node_modules/
-.plasmo/
-.venv/
-venv/
-env/
-ENV/
-
-# Build & Compiled files
-build/
-dist/
-*.tsbuildinfo
-*.pyc
-*.pyo
-*.pyd
-__pycache__/
-**/__pycache__/
-.pytest_cache/
-
-# Environment & Secret files
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-
-# Hardware, Models & Local Data Outputs
-outputs/
-app/models/*.pt
-argus_notes.json
-
-# Temporary Media & Images (exempting assets folder)
-WhatsApp Image*
-*.jpeg
-*.jpg
-*.png
-!**/assets/**
-*.mp3
-*.wav
-
-# OS & Editor files
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.log
-
+﻿node_modules/
+.expo/
+.expo-check/
+*.apk
+*.aab

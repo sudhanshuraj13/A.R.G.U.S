@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "ARGUS Support",
+    "slug": "argus-hub",
+    "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "orientation": "portrait",
+    "updates": {
+      "enabled": false
+    },
+    "plugins": [
+      "expo-status-bar",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow A.R.G.U.S. Hub to access your location for smart-glasses navigation."
+        }
+      ]
+    ]
+  }
+}

@@ -119,15 +119,15 @@ class VisionModule:
 
         while self._bg_running:
             try:
-                resp = http_client.get(capture_url, timeout=(1.5, 3.5))
-                if resp.status_code == 200:
+                resp = http_client.get(capture_url, timeout=(2.5, 4.5))
+                if resp.status_code == 200 and len(resp.content) > 100:
                     img = Image.open(io.BytesIO(resp.content)).convert("RGB")
                     with self._frame_lock:
                         self._latest_frame = img
                         self._last_frame_time = time.time()
-                time.sleep(0.05)
+                time.sleep(0.1)
             except Exception:
-                time.sleep(0.8)
+                time.sleep(1.0)
 
     # ── ESP32-CAM Direct Capture ─────────────────────────
 
@@ -139,19 +139,25 @@ class VisionModule:
         Fetch a single JPEG frame from the ESP32-CAM over HTTP.
         Returns a PIL Image directly.
         """
+        # First check if RAM buffer has a fresh frame
+        with self._frame_lock:
+            if self._latest_frame is not None and (time.time() - self._last_frame_time) < 15.0:
+                return self._latest_frame
+
         capture_url = f"{self.esp32_url}/capture"
         http_client = self.session if self.session else _requests
         last_error = None
 
         for attempt in range(1, self._ESP32_MAX_RETRIES + 1):
             try:
-                resp = http_client.get(capture_url, timeout=(2.0, 4.0))
+                resp = http_client.get(capture_url, timeout=(3.0, 6.0))
                 resp.raise_for_status()
-                img = Image.open(io.BytesIO(resp.content)).convert("RGB")
-                with self._frame_lock:
-                    self._latest_frame = img
-                    self._last_frame_time = time.time()
-                return img
+                if len(resp.content) > 100:
+                    img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+                    with self._frame_lock:
+                        self._latest_frame = img
+                        self._last_frame_time = time.time()
+                    return img
             except (_requests.ConnectionError, _requests.Timeout, OSError) as e:
                 last_error = e
                 if attempt < self._ESP32_MAX_RETRIES:
@@ -167,19 +173,16 @@ class VisionModule:
 
     @staticmethod
     def check_esp32(url: str) -> bool:
-        """Check whether the ESP32-CAM is reachable (tries twice)."""
+        """Check whether the ESP32-CAM is reachable."""
         if not REQUESTS_AVAILABLE or not url:
             return False
         capture_url = f"{url.rstrip('/')}/capture"
-        for attempt in range(2):
-            try:
-                resp = _requests.get(capture_url, timeout=(2, 5))
-                if resp.status_code == 200:
-                    return True
-            except Exception:
-                pass
-            if attempt == 0:
-                time.sleep(0.5)
+        try:
+            resp = _requests.get(capture_url, timeout=(2.5, 4.0))
+            if resp.status_code == 200 and len(resp.content) > 100:
+                return True
+        except Exception:
+            pass
         return False
 
     # ── Local Webcam Capture ─────────────────────────────
@@ -243,6 +246,13 @@ class VisionModule:
     def check_camera(self) -> bool:
         """Check whether the configured camera source is available."""
         if self._use_esp32:
+            # First check if the background RAM frame buffer has captured a frame
+            for _ in range(12):
+                with self._frame_lock:
+                    if self._latest_frame is not None:
+                        return True
+                time.sleep(0.15)
+            # If not yet populated in RAM, try direct check
             return self.check_esp32(self.esp32_url)
         return self.check_webcam()
 

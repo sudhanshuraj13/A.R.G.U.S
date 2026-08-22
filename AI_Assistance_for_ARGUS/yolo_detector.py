@@ -40,6 +40,7 @@ class YOLODetector:
         self.conf_threshold = confidence_threshold
         self.object_model = None
         self.currency_model = None
+        self._ocr_reader = None
 
         if not ULTRALYTICS_AVAILABLE:
             print("  ℹ️  Ultralytics not installed. Install with: pip install ultralytics")
@@ -192,37 +193,45 @@ class YOLODetector:
             print(f"[YOLODetector] Currency detection error: {e}")
             return "Failed to detect currency from this image."
 
-    # ── Local OCR / Text Reader ───────────────────────────
+    # ── Local OCR / Text Reader (Offline) ─────────────────
+
+    def _get_easyocr_reader(self):
+        """Lazy load and cache the EasyOCR Reader instance."""
+        if self._ocr_reader is None:
+            try:
+                import easyocr
+                self._ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            except Exception as e:
+                print(f"[YOLODetector] EasyOCR init error: {e}")
+        return self._ocr_reader
 
     def read_text(self, pil_image: Image.Image) -> str:
         """
-        Fast local text extraction for physical button trigger.
-        Attempts pytesseract or easyocr if installed.
+        Fast local text extraction for physical button triggers (100% Offline).
+        Uses cached EasyOCR or Tesseract without calling cloud LLM APIs.
         """
-        # Try pytesseract first
+        # 1. Try pytesseract first if installed
         try:
             import pytesseract
             text = pytesseract.image_to_string(pil_image).strip()
-            if text:
-                # Clean up excessive newlines
-                clean_text = " ".join(text.split())
+            clean_text = " ".join(text.split())
+            if len(clean_text) >= 2:
                 return f"Text reads: {clean_text}"
-        except ImportError:
+        except Exception:
             pass
-        except Exception as e:
-            print(f"[YOLODetector] pytesseract error: {e}")
 
-        # Try easyocr fallback
+        # 2. Try cached EasyOCR
         try:
-            import easyocr
-            import numpy as np
-            reader = easyocr.Reader(['en'], gpu=False)
-            results = reader.readtext(np.array(pil_image), detail=0)
-            if results:
-                return f"Text reads: {' '.join(results)}"
-        except ImportError:
-            pass
+            reader = self._get_easyocr_reader()
+            if reader is not None:
+                import numpy as np
+                img_np = np.array(pil_image)
+                results = reader.readtext(img_np, detail=0, paragraph=True)
+                if results:
+                    clean_text = " ".join(" ".join(results).split())
+                    if len(clean_text) >= 2:
+                        return f"Text reads: {clean_text}"
         except Exception as e:
-            print(f"[YOLODetector] easyocr error: {e}")
+            print(f"[YOLODetector] EasyOCR read error: {e}")
 
-        return "No text could be extracted offline. Please verify that an OCR package (pytesseract or easyocr) is installed."
+        return "No clear text found in view."

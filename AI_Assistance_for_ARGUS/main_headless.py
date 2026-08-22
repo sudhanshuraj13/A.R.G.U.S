@@ -150,8 +150,8 @@ def trigger_button_objects(yolo: YOLODetector, vision: VisionModule, speech: Spe
 
 
 def trigger_button_ocr(yolo: YOLODetector, vision: VisionModule, speech: SpeechManager):
-    """Physical Button 3: Instant OCR text reader with VLM fallback."""
-    print("\n🔘 [Physical Button 3: OCR] Triggered instant text reader...")
+    """Physical Button 3: Instant Offline OCR text reader (Tesseract / EasyOCR)."""
+    print("\n🔘 [Physical Button 3: OCR] Triggered instant offline text reader...")
     if not vision:
         speak(speech, "Camera system is not available.")
         return
@@ -159,12 +159,7 @@ def trigger_button_ocr(yolo: YOLODetector, vision: VisionModule, speech: SpeechM
         t0 = time.time()
         pil_img = vision._capture_pil()
         result = yolo.read_text(pil_img)
-        # If offline OCR is not installed, seamlessly use Llama 3.2 Vision OCR
-        if "No text could be extracted" in result and vision:
-            vlm_desc, _ = vision.read_text_ocr(frame=pil_img)
-            if vlm_desc:
-                result = vlm_desc
-        print(f"  ⚡ OCR took {time.time() - t0:.2f}s")
+        print(f"  ⚡ Offline OCR took {time.time() - t0:.2f}s")
         print(f"  💬 Result: {result}")
         speak(speech, result)
     except Exception as e:

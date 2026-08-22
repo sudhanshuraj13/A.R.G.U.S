@@ -129,13 +129,11 @@ class SpeechManager:
             mic_kwargs = {"device_index": mic_idx} if mic_idx is not None else {}
 
             with sr.Microphone(**mic_kwargs) as source:
-                # Fast 0.25s ambient noise calibration
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.25)
-                # Keep energy threshold bounded between 100 and 400 so normal speech triggers immediately
-                if self.recognizer.energy_threshold > 450:
-                    self.recognizer.energy_threshold = 300
-                elif self.recognizer.energy_threshold < 100:
-                    self.recognizer.energy_threshold = 150
+                # Dynamic ambient noise calibration (0.5s) to adapt to room noise level
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                # Ensure threshold never drops to zero while allowing full dynamic range for noisy environments
+                if self.recognizer.energy_threshold < 50:
+                    self.recognizer.energy_threshold = 50
 
                 audio = self.recognizer.listen(
                     source,
@@ -218,9 +216,14 @@ class SpeechManager:
 
     async def _async_synthesize(self, text: str) -> bytes:
         """Async edge-tts synthesis returning MP3 bytes."""
+        # Detect Devanagari / Hindi characters and use natural Indian Hindi voice
+        selected_voice = self.tts_voice
+        if any('\u0900' <= char <= '\u097f' for char in text):
+            selected_voice = "hi-IN-SwaraNeural"
+
         communicate = edge_tts.Communicate(
             text=text,
-            voice=self.tts_voice,
+            voice=selected_voice,
             rate=self.tts_rate,
         )
         audio_data = b""

@@ -1,5 +1,68 @@
-﻿node_modules/
+# Dependencies & Environments
+node_modules/
+**/node_modules/
+.plasmo/
+**/.plasmo/
+.venv/
+**/.venv/
+venv/
+**/venv/
+env/
+ENV/
+
+# Build & Bundled outputs
+build/
+**/build/
+dist/
+**/dist/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Mobile & Expo
 .expo/
+**/.expo/
 .expo-check/
 *.apk
 *.aab
+
+# Python Caches & Compiled files
+*.py[cod]
+*$py.class
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Secrets & Environment configs
+.env
+**/.env
+.env.*
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+
+# Application State & Local Notes
+argus_notes.json
+**/argus_notes.json
+outputs/
+**/outputs/
+
+# Media & Temporary Recordings
+*.mp3
+*.wav
+*.pcm
+WhatsApp Image*
+!**/assets/**
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log

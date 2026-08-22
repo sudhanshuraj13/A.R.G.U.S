@@ -25,9 +25,12 @@ bool CameraManager::begin() {
     config.pin_reset = -1;
     config.xclk_freq_hz = 20000000;
     config.pixel_format = PIXFORMAT_JPEG;
+    config.frame_size = FRAMESIZE_VGA;
     config.fb_location = CAMERA_FB_IN_PSRAM;
     config.jpeg_quality = CAMERA_JPEG_QUALITY;
     config.fb_count = CAMERA_FB_COUNT;
+    config.grab_mode = CAMERA_GRAB_LATEST;
+
 
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {

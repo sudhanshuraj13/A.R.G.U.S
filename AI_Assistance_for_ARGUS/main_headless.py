@@ -34,6 +34,7 @@ from memory import MemoryManager
 from speech import SpeechManager
 from vision import VisionModule
 from assistant import AssistantEngine
+from yolo_detector import YOLODetector
 
 # ─── GPIO setup (graceful fallback on non-Pi systems) ────
 GPIO_AVAILABLE = False
@@ -104,39 +105,139 @@ def speak(speech_manager: SpeechManager, text: str) -> None:
 
 
 # ═══════════════════════════════════════════════════════
-# GPIO Button Setup
+# Offline Physical Button Triggers (YOLO & Local Vision)
+# ═══════════════════════════════════════════════════════
+
+def trigger_button_currency(yolo: YOLODetector, vision: VisionModule, speech: SpeechManager):
+    """Physical Button 1: Instant Indian currency scan with VLM fallback."""
+    print("\n🔘 [Physical Button 1: CURRENCY] Triggered instant currency scan...")
+    if not vision:
+        speak(speech, "Camera system is not available.")
+        return
+    try:
+        t0 = time.time()
+        pil_img = vision._capture_pil()
+        result = yolo.detect_currency(pil_img)
+        # If offline YOLO didn't catch the note, seamlessly use Llama 3.2 Vision
+        if "No currency" in result and vision:
+            vlm_desc, _ = vision.detect_currency(frame=pil_img)
+            if vlm_desc and not any(trig in vlm_desc.lower() for trig in ["can't assist", "cannot assist", "can't help"]):
+                result = vlm_desc
+        print(f"  ⚡ Currency detection took {time.time() - t0:.2f}s")
+        print(f"  💬 Result: {result}")
+        speak(speech, result)
+    except Exception as e:
+        print(f"  ❌ Currency scan error: {e}")
+        speak(speech, "Sorry, I could not complete currency detection. Please check the camera.")
+
+
+def trigger_button_objects(yolo: YOLODetector, vision: VisionModule, speech: SpeechManager):
+    """Physical Button 2: Instant offline object & spatial navigation scan."""
+    print("\n🔘 [Physical Button 2: OBJECTS] Triggered instant offline object & obstacle scan...")
+    if not vision:
+        speak(speech, "Camera system is not available.")
+        return
+    try:
+        t0 = time.time()
+        pil_img = vision._capture_pil()
+        result = yolo.detect_objects(pil_img)
+        print(f"  ⚡ Object detection took {time.time() - t0:.2f}s")
+        print(f"  💬 Result: {result}")
+        speak(speech, result)
+    except Exception as e:
+        print(f"  ❌ Object scan error: {e}")
+        speak(speech, "Sorry, I could not complete object detection. Please check the camera.")
+
+
+def trigger_button_ocr(yolo: YOLODetector, vision: VisionModule, speech: SpeechManager):
+    """Physical Button 3: Instant OCR text reader with VLM fallback."""
+    print("\n🔘 [Physical Button 3: OCR] Triggered instant text reader...")
+    if not vision:
+        speak(speech, "Camera system is not available.")
+        return
+    try:
+        t0 = time.time()
+        pil_img = vision._capture_pil()
+        result = yolo.read_text(pil_img)
+        # If offline OCR is not installed, seamlessly use Llama 3.2 Vision OCR
+        if "No text could be extracted" in result and vision:
+            vlm_desc, _ = vision.read_text_ocr(frame=pil_img)
+            if vlm_desc:
+                result = vlm_desc
+        print(f"  ⚡ OCR took {time.time() - t0:.2f}s")
+        print(f"  💬 Result: {result}")
+        speak(speech, result)
+    except Exception as e:
+        print(f"  ❌ OCR scan error: {e}")
+        speak(speech, "Sorry, I could not complete text reading. Please check the camera.")
+
+
+# ═══════════════════════════════════════════════════════
+# Multi-Button GPIO Setup (Raspberry Pi)
 # ═══════════════════════════════════════════════════════
 def setup_gpio():
-    """Configure the GPIO push-button (pull-up, active-low)."""
+    """Configure multiple GPIO push-buttons on the 3D glasses (pull-up, active-low)."""
     if not GPIO_AVAILABLE:
         return
 
-    pin = getattr(config, "GPIO_BUTTON_PIN", 17)
+    pins = [
+        ("Voice/Main", getattr(config, "GPIO_BUTTON_PIN", 17)),
+        ("Currency", getattr(config, "GPIO_PIN_CURRENCY", 27)),
+        ("Objects", getattr(config, "GPIO_PIN_OBJECTS", 22)),
+        ("OCR", getattr(config, "GPIO_PIN_OCR", 23)),
+    ]
     GPIO.setmode(GPIO.BCM)
-    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    print(f"  ✅ GPIO button configured on pin {pin}")
+    for name, pin in pins:
+        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        print(f"  ✅ GPIO Button '{name}' configured on pin {pin}")
 
 
-def wait_for_trigger():
+def wait_for_trigger() -> str:
     """
-    Block until the user triggers an interaction.
-    Uses GPIO button on Pi, keyboard Enter on other platforms.
+    Block until user presses a physical glasses button or keyboard trigger.
+    Returns trigger action: 'voice', 'currency', 'objects', or 'ocr'.
     """
     if GPIO_AVAILABLE:
-        pin = getattr(config, "GPIO_BUTTON_PIN", 17)
+        voice_pin = getattr(config, "GPIO_BUTTON_PIN", 17)
+        curr_pin = getattr(config, "GPIO_PIN_CURRENCY", 27)
+        obj_pin = getattr(config, "GPIO_PIN_OBJECTS", 22)
+        ocr_pin = getattr(config, "GPIO_PIN_OCR", 23)
         bounce = getattr(config, "GPIO_BUTTON_BOUNCE_MS", 300)
-        print("\n⏳ Waiting for button press...")
-        try:
-            GPIO.wait_for_edge(pin, GPIO.FALLING, bouncetime=bounce)
-        except Exception:
-            # Fallback if GPIO edge detection fails
-            input("\n⏳ Press [Enter] to interact with ARGUS...")
+
+        print("\n⏳ Waiting for physical glasses button press...")
+        while True:
+            if GPIO.input(curr_pin) == GPIO.LOW:
+                time.sleep(bounce / 1000.0)
+                return "currency"
+            if GPIO.input(obj_pin) == GPIO.LOW:
+                time.sleep(bounce / 1000.0)
+                return "objects"
+            if GPIO.input(ocr_pin) == GPIO.LOW:
+                time.sleep(bounce / 1000.0)
+                return "ocr"
+            if GPIO.input(voice_pin) == GPIO.LOW:
+                time.sleep(bounce / 1000.0)
+                return "voice"
+            time.sleep(0.05)
     else:
-        input("\n⏳ Press [Enter] to interact with ARGUS...")
+        print("\n" + "─" * 50)
+        print("  🔘 [Enter]   -> Voice AI Agent (\"Hey ARGUS\" / LangGraph)")
+        print("  🔘 'c' + Enter -> Physical Button 1: Instant Currency Scan")
+        print("  🔘 'o' + Enter -> Physical Button 2: Instant Object Scan")
+        print("  🔘 't' + Enter -> Physical Button 3: Instant OCR Text Scan")
+        print("─" * 50)
+        cmd = input("⏳ Select action or press [Enter] for Voice AI: ").strip().lower()
+        if cmd == "c":
+            return "currency"
+        elif cmd == "o":
+            return "objects"
+        elif cmd == "t":
+            return "ocr"
+        return "voice"
 
 
 # ═══════════════════════════════════════════════════════
-# Interaction Cycle
+# Voice Interaction Cycle (Full LangGraph Multi-Agent)
 # ═══════════════════════════════════════════════════════
 def run_interaction(assistant: AssistantEngine, speech: SpeechManager):
     """Execute one full interaction cycle: listen → process → speak."""
@@ -281,12 +382,15 @@ def main():
     assistant = AssistantEngine(memory=memory, vision=vision)
     print("  ✅ Assistant Engine")
 
+    yolo = YOLODetector()
+    print("  ✅ Offline YOLO Engine")
+
     setup_gpio()
 
     # ── Ready chime ──────────────────────────
     print("\n" + "─" * 50)
-    print("  🟢 ARGUS is READY")
-    print(f"  Trigger: {'GPIO button (pin {})'.format(getattr(config, 'GPIO_BUTTON_PIN', 17)) if GPIO_AVAILABLE else 'Keyboard [Enter]'}")
+    print("  🟢 ARGUS is READY (Hybrid: Voice AI + Offline YOLO Buttons)")
+    print(f"  Trigger: {'Multi-GPIO Buttons' if GPIO_AVAILABLE else 'Keyboard (Enter / c / o / t)'}")
     print(f"  Time: {datetime.now().strftime('%I:%M %p')}")
     print("  Press Ctrl+C to exit")
     print("─" * 50)
@@ -307,8 +411,16 @@ def main():
     # ── Main event loop ──────────────────────
     while True:
         try:
-            wait_for_trigger()
-            run_interaction(assistant, speech)
+            action = wait_for_trigger()
+            if action == "currency":
+                trigger_button_currency(yolo, vision, speech)
+            elif action == "objects":
+                trigger_button_objects(yolo, vision, speech)
+            elif action == "ocr":
+                trigger_button_ocr(yolo, vision, speech)
+            else:
+                # Voice / Main AI Assistant (LangGraph Multi-Agent)
+                run_interaction(assistant, speech)
         except KeyboardInterrupt:
             shutdown()
         except Exception as e:

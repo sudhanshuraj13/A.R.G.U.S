@@ -14,6 +14,7 @@ import io
 import sys
 import time
 import base64
+import threading
 from PIL import Image
 from typing import Optional, Tuple
 from openai import OpenAI
@@ -55,11 +56,9 @@ def _get_camera_backend():
 
 class VisionModule:
     """
-    Handles image capture and Llama 3.2 Vision scene description.
-
-    Auto-selects capture source:
-      - If ESP32_CAM_URL is set → fetches JPEG over HTTP (no OpenCV needed)
-      - Otherwise → captures from local webcam via OpenCV
+    Handles zero-latency image capture and Llama 3.2 Vision scene description.
+    Uses an asynchronous background frame buffer for instantaneous (0ms) frame access
+    directly from the ESP32-CAM smart glasses hardware.
     """
 
     def __init__(
@@ -85,42 +84,103 @@ class VisionModule:
                 "The 'requests' library is required for ESP32-CAM. "
                 "Install it with: pip install requests"
             )
+        
+        # Configure a persistent HTTP session with keep-alive for faster ESP32 requests
+        if REQUESTS_AVAILABLE:
+            self.session = _requests.Session()
+            adapter = _requests.adapters.HTTPAdapter(
+                pool_connections=2,
+                pool_maxsize=2,
+                max_retries=0,
+            )
+            self.session.mount("http://", adapter)
+        else:
+            self.session = None
 
-    # ── ESP32-CAM Capture ────────────────────────────────
+        # ── Async Background Frame Buffer (Zero-Latency) ──────
+        self._latest_frame: Optional[Image.Image] = None
+        self._last_frame_time: float = 0.0
+        self._frame_lock = threading.Lock()
+        self._bg_running = True
+        self._bg_thread = None
+
+        if self._use_esp32:
+            self._bg_thread = threading.Thread(
+                target=self._background_frame_fetcher,
+                name="ESP32-FrameBuffer",
+                daemon=True,
+            )
+            self._bg_thread.start()
+
+    def _background_frame_fetcher(self) -> None:
+        """Continuously cache latest frame from ESP32-CAM into RAM for 0ms access."""
+        capture_url = f"{self.esp32_url}/capture"
+        http_client = self.session if self.session else _requests
+
+        while self._bg_running:
+            try:
+                resp = http_client.get(capture_url, timeout=(1.5, 3.5))
+                if resp.status_code == 200:
+                    img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+                    with self._frame_lock:
+                        self._latest_frame = img
+                        self._last_frame_time = time.time()
+                time.sleep(0.05)
+            except Exception:
+                time.sleep(0.8)
+
+    # ── ESP32-CAM Direct Capture ─────────────────────────
+
+    _ESP32_MAX_RETRIES = 2
+    _ESP32_RETRY_DELAY = 0.5
 
     def capture_esp32(self) -> Image.Image:
         """
         Fetch a single JPEG frame from the ESP32-CAM over HTTP.
-        Returns a PIL Image directly (no OpenCV needed).
+        Returns a PIL Image directly.
         """
         capture_url = f"{self.esp32_url}/capture"
-        try:
-            resp = _requests.get(capture_url, timeout=1.5)
-            resp.raise_for_status()
-            return Image.open(io.BytesIO(resp.content)).convert("RGB")
-        except _requests.ConnectionError:
-            raise RuntimeError(
-                f"Cannot connect to ESP32-CAM at {capture_url}. "
-                "Check that the ESP32 is powered on and connected to the same network."
-            )
-        except _requests.Timeout:
-            raise RuntimeError(
-                f"ESP32-CAM at {capture_url} did not respond in time. "
-                "The device may be busy or unreachable."
-            )
-        except Exception as e:
-            raise RuntimeError(f"ESP32-CAM capture failed: {e}")
+        http_client = self.session if self.session else _requests
+        last_error = None
+
+        for attempt in range(1, self._ESP32_MAX_RETRIES + 1):
+            try:
+                resp = http_client.get(capture_url, timeout=(2.0, 4.0))
+                resp.raise_for_status()
+                img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+                with self._frame_lock:
+                    self._latest_frame = img
+                    self._last_frame_time = time.time()
+                return img
+            except (_requests.ConnectionError, _requests.Timeout, OSError) as e:
+                last_error = e
+                if attempt < self._ESP32_MAX_RETRIES:
+                    time.sleep(self._ESP32_RETRY_DELAY)
+            except Exception as e:
+                raise RuntimeError(f"ESP32-CAM capture failed: {e}")
+
+        raise RuntimeError(
+            f"Cannot connect to ESP32-CAM at {capture_url}. "
+            "Please check that the glasses camera is powered on and connected to the network."
+        )
+
 
     @staticmethod
     def check_esp32(url: str) -> bool:
-        """Check whether the ESP32-CAM is reachable."""
+        """Check whether the ESP32-CAM is reachable (tries twice)."""
         if not REQUESTS_AVAILABLE or not url:
             return False
-        try:
-            resp = _requests.get(f"{url.rstrip('/')}/capture", timeout=1.0)
-            return resp.status_code == 200
-        except Exception:
-            return False
+        capture_url = f"{url.rstrip('/')}/capture"
+        for attempt in range(2):
+            try:
+                resp = _requests.get(capture_url, timeout=(2, 5))
+                if resp.status_code == 200:
+                    return True
+            except Exception:
+                pass
+            if attempt == 0:
+                time.sleep(0.5)
+        return False
 
     # ── Local Webcam Capture ─────────────────────────────
 
@@ -152,7 +212,9 @@ class VisionModule:
             cap.release()
 
     def frame_to_pil(self, frame) -> Image.Image:
-        """Convert an OpenCV BGR frame to a PIL RGB Image."""
+        """Convert an OpenCV BGR frame or PIL Image to a PIL RGB Image."""
+        if isinstance(frame, Image.Image):
+            return frame.convert("RGB")
         if not CV2_AVAILABLE:
             raise RuntimeError("OpenCV is required for frame_to_pil.")
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -179,28 +241,35 @@ class VisionModule:
             return False
 
     def check_camera(self) -> bool:
-        """Check whether ANY camera source is available (ESP32 or local)."""
-        if self._use_esp32 and self.check_esp32(self.esp32_url):
-            return True
+        """Check whether the configured camera source is available."""
+        if self._use_esp32:
+            return self.check_esp32(self.esp32_url)
         return self.check_webcam()
 
-    # ── Unified Capture ──────────────────────────────────
+    # ── Unified Capture (0ms Instant Frame Access) ───────────
 
     def _capture_pil(self, frame=None) -> Image.Image:
         """
-        Capture an image as a PIL Image from the best available source.
-        Priority: provided frame → ESP32-CAM → local webcam (auto-fallback).
+        Capture an image as a PIL Image.
+        Returns the instantaneous cached frame from the ESP32-CAM glasses hardware in 0ms,
+        or performs direct capture if cache is empty.
         """
         if frame is not None:
+            if isinstance(frame, Image.Image):
+                return frame
             return self.frame_to_pil(frame)
 
-        # Try ESP32-CAM first, fall back to local webcam
+        # For ESP32-CAM Smart Glasses hardware:
         if self._use_esp32:
-            try:
-                return self.capture_esp32()
-            except RuntimeError as e:
-                print(f"[VisionModule] ESP32-CAM unavailable ({e}), falling back to local webcam...")
+            with self._frame_lock:
+                # If cached frame is available and less than 15s old, return instantly (0ms)
+                if self._latest_frame is not None and (time.time() - self._last_frame_time) < 15.0:
+                    return self._latest_frame
 
+            # If cache is empty or stale, perform direct fetch
+            return self.capture_esp32()
+
+        # Local webcam mode (when ESP32 is not configured)
         frame = self.capture_frame()
         return self.frame_to_pil(frame)
 
@@ -288,9 +357,8 @@ class VisionModule:
         """Identify Indian currency notes and coins in the frame."""
         prompt = (
             f"{CURRENCY_PROMPT}\n\n"
-            f"User asked: \"{question}\"\n"
-            f"Inspect the image for Indian currency notes (₹10, ₹20, ₹50, ₹100, ₹200, ₹500) and coins (₹1, ₹2, ₹5, ₹10, ₹20). "
-            f"State the denomination and count clearly."
+            f"The user is asking: \"{question}\"\n"
+            f"Identify the Indian rupee banknote or coin denomination held in the user's hand and state its value clearly."
         ) if question else CURRENCY_PROMPT
         return self.describe_scene(frame=frame, custom_prompt=prompt)
 

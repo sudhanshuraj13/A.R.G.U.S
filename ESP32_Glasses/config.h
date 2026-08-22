@@ -15,7 +15,7 @@
 // Find the Raspberry Pi IP on your local Wi-Fi network using:
 //   hostname -I
 // Example: "192.168.1.50" or "10.28.160.146"
-#define PI_SERVER_IP    "10.28.160.146"
+#define PI_SERVER_IP    "http://10.42.197.202"
 
 // Port used by the Raspberry Pi FastAPI server
 #define PI_SERVER_PORT  8000
@@ -64,8 +64,9 @@
 // Quality 12 is optimal for YOLO detection & Llama Vision inference over Wi-Fi
 #define CAMERA_JPEG_QUALITY 12
 
-// Number of frame buffers
-#define CAMERA_FB_COUNT 1
+// Number of frame buffers (2 enables double buffering in PSRAM for zero-wait capturing)
+#define CAMERA_FB_COUNT 2
+
 
 // -------------------- Debugging --------------------
 #define SERIAL_BAUD_RATE 115200

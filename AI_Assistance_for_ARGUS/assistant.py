@@ -29,23 +29,33 @@ class AssistantEngine:
     """
 
     # Intent keywords for classification
-    NOTE_KEYWORDS = [
-        "take a note", "note down", "save a note", "make a note",
-        "remember that", "remember to", "remember", "remind me", "write down",
-        "jot down", "record that", "save that", "meeting at", "appointment",
-    ]
-    CURRENCY_KEYWORDS = [
-        "currency", "money", "rupee", "rupees", "cash", "banknote", "bank note",
-        "currency note", "rupee note", "coin", "how much money", "which note",
-        "what note", "what coin", "bill",
-    ]
     OCR_KEYWORDS = [
+        "what is written", "what is writing", "what's written", "written on", "writing on",
         "read text", "read this", "read signboard", "signboard", "read sign", "read label",
         "what does it say", "read document", "read paper", "read words", "read text on",
+        "read what", "what text",
+    ]
+    CURRENCY_KEYWORDS = [
+        "currency", "rupee", "rupees", "cash", "banknote", "bank note",
+        "currency note", "rupee note", "coin", "how much money", "which note",
+        "what note", "what coin", "bill", "value of note", "value of this note",
+        "note am i holding", "note in my hand", "holding note", "holding a note",
+        "how many notes", "many notes", "dominion note", "denomination", "denominations",
+        "notes am i", "how many rupee", "what currency", "currency i am holding",
+    ]
+    NOTE_KEYWORDS = [
+        "take a note", "note down", "save a note", "make a note",
+        "remember that", "remember to", "remind me", "write down",
+        "jot down", "record that", "save that", "meeting at", "appointment",
+        "my saved notes", "read my notes", "what are my notes", "list my notes",
+        "show my notes", "my reminders", "what notes do i have",
     ]
     OBJECT_KEYWORDS = [
         "find object", "find my", "where is", "locate", "object detection",
-        "detect objects", "what objects", "where is the",
+        "detect objects", "what objects", "what object", "where is the",
+        "what am i holding", "what is in my hand", "what's in my hand",
+        "holding in my hand", "what do i have", "identify this", "identify object",
+        "what is this object", "what's this object", "tell me what object",
     ]
     SCENE_KEYWORDS = [
         "describe", "surroundings", "around me", "in front of me",
@@ -94,26 +104,37 @@ class AssistantEngine:
 
     def classify_intent(self, query: str) -> str:
         """
-        Classify user query into one of: note, currency, ocr, object, scene, time, date, general.
-        Uses keyword matching for speed and reliability.
+        Classify user query into one of: ocr, currency, note, object, scene, time, date, general.
+        Evaluates OCR and Currency before saved memory notes to respect Indian context ('note' = currency bill / written text).
         """
         q = query.lower().strip()
 
-        for keyword in self.NOTE_KEYWORDS:
-            if keyword in q:
-                return "note"
-        for keyword in self.CURRENCY_KEYWORDS:
-            if keyword in q:
-                return "currency"
+        # 1. OCR (Reading physical text/writing via camera)
         for keyword in self.OCR_KEYWORDS:
             if keyword in q:
                 return "ocr"
+
+        # 2. Currency (Indian banknotes ₹10-₹500 & coins)
+        for keyword in self.CURRENCY_KEYWORDS:
+            if keyword in q:
+                return "currency"
+
+        # 3. Note/Task Memory (Saving/fetching text reminders)
+        for keyword in self.NOTE_KEYWORDS:
+            if keyword in q:
+                return "note"
+
+        # 4. Object Detection & Spatial Location
         for keyword in self.OBJECT_KEYWORDS:
             if keyword in q:
                 return "object"
+
+        # 5. Scene Understanding
         for keyword in self.SCENE_KEYWORDS:
             if keyword in q:
                 return "scene"
+
+        # 6. Time & Date
         for keyword in self.TIME_KEYWORDS:
             if keyword in q:
                 return "time"
@@ -122,6 +143,7 @@ class AssistantEngine:
                 return "date"
 
         return "general"
+
 
 
 
@@ -220,6 +242,14 @@ class AssistantEngine:
             return "Sorry, the camera system is not available right now.", "currency", None
         try:
             description, pil_image = self.vision.detect_currency(query)
+
+            # Safety Refusal Fallback: If VLM triggered a false-positive guardrail, read printed note text
+            refusal_triggers = ["can't assist", "cannot assist", "can't help", "cannot help", "sorry, but i can't"]
+            if any(trig in description.lower() for trig in refusal_triggers) and pil_image is not None:
+                ocr_desc, _ = self.vision.read_text_ocr("Read the banknote number and denomination value on this note", frame=pil_image)
+                if ocr_desc and not any(trig in ocr_desc.lower() for trig in refusal_triggers):
+                    description = ocr_desc
+
             self.memory.add_interaction(query, description)
             return description, "currency", pil_image
         except RuntimeError:

@@ -10,13 +10,18 @@ import asyncio
 import io
 import tempfile
 import os
+import time
 import threading
 from typing import Optional, Tuple
 
 import speech_recognition as sr
 import edge_tts
+from openai import OpenAI
 
-from config import TTS_VOICE, TTS_RATE, LISTEN_TIMEOUT, PHRASE_TIME_LIMIT
+from config import (
+    TTS_VOICE, TTS_RATE, LISTEN_TIMEOUT, PHRASE_TIME_LIMIT,
+    ENERGY_THRESHOLD, GROQ_API_KEY, GROQ_BASE_URL, WHISPER_MODEL,
+)
 
 
 class SpeechManager:
@@ -34,15 +39,36 @@ class SpeechManager:
         self.listen_timeout = listen_timeout
         self.phrase_time_limit = phrase_time_limit
         self.recognizer = sr.Recognizer()
-        # Adjust recognizer sensitivity
-        self.recognizer.energy_threshold = 300
+
+        # Audio sensitivity & dynamic noise tuning
+        self.recognizer.energy_threshold = ENERGY_THRESHOLD
         self.recognizer.dynamic_energy_threshold = True
+        self.recognizer.dynamic_energy_adjustment_damping = 0.15
+        self.recognizer.dynamic_energy_ratio = 1.5
+        self.recognizer.pause_threshold = 0.8          # Natural pause before concluding speech
+        self.recognizer.non_speaking_duration = 0.5
+
+        # Initialize ultra-fast Groq Whisper client if key available (ponytail: reuse OpenAI client)
+        self.groq_client = None
+        if GROQ_API_KEY:
+            try:
+                self.groq_client = OpenAI(base_url=GROQ_BASE_URL, api_key=GROQ_API_KEY)
+            except Exception as e:
+                print(f"[SpeechManager] Groq Whisper init notice: {e}")
 
     # ── Speech-to-Text ───────────────────────────────────
 
     @staticmethod
     def get_laptop_mic_index() -> Optional[int]:
-        """Find the index of the laptop's active built-in microphone."""
+        """
+        Find the index of the active physical microphone (e.g. Intel/Realtek Microphone Array).
+        """
+        # 1. Check if explicitly set in config/environment
+        from config import MICROPHONE_INDEX
+        if MICROPHONE_INDEX is not None:
+            return MICROPHONE_INDEX
+
+        # 2. Try fetching default input device info from top-level PyAudio
         try:
             import pyaudio
             p = pyaudio.PyAudio()
@@ -53,15 +79,45 @@ class SpeechManager:
         except Exception:
             pass
 
+        # 3. Search microphone device names for physical Microphone Array
         try:
-            names = sr.Microphone.list_microphone_names()
-            for idx, name in enumerate(names):
-                n = name.lower()
-                if "microphone array" in n or "realtek" in n or "intel" in n:
+            mic_names = sr.Microphone.list_microphone_names()
+            for idx, name in enumerate(mic_names):
+                name_lower = name.lower()
+                if "microphone array" in name_lower or "intel" in name_lower:
                     return idx
         except Exception:
             pass
+
+        return 1  # Default to index 1 on Windows rather than silent Sound Mapper index 0
+
+
+    def _transcribe_groq(self, audio: sr.AudioData) -> Optional[str]:
+        """Transcribe audio using Groq Whisper Large V3 Turbo (sub-200ms latency)."""
+        if not self.groq_client:
+            return None
+        try:
+            t0 = time.time()
+            wav_bytes = audio.get_wav_data()
+            audio_buffer = io.BytesIO(wav_bytes)
+            audio_buffer.name = "voice.wav"
+
+            res = self.groq_client.audio.transcriptions.create(
+                file=audio_buffer,
+                model=WHISPER_MODEL,
+                language="en",
+                prompt="ARGUS smart glasses voice commands: scene, currency, rupees, OCR, text, obstacle, objects, notes, time, date.",
+                temperature=0.0,
+            )
+            elapsed = time.time() - t0
+            transcript = res.text.strip()
+            if transcript:
+                print(f"  ⚡ Groq Whisper transcribed in {elapsed:.2f}s: \"{transcript}\"")
+                return transcript
+        except Exception as e:
+            print(f"[SpeechManager] Groq Whisper failed ({e}), falling back to Google STT...")
         return None
+
 
     def listen(self) -> Tuple[Optional[str], Optional[str]]:
         """
@@ -73,13 +129,26 @@ class SpeechManager:
             mic_kwargs = {"device_index": mic_idx} if mic_idx is not None else {}
 
             with sr.Microphone(**mic_kwargs) as source:
-                # Do NOT block with adjust_for_ambient_noise inside the loop 
-                # as it clips the first spoken word. Use fast dynamic threshold instead.
+                # Fast 0.25s ambient noise calibration
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.25)
+                # Keep energy threshold bounded between 100 and 400 so normal speech triggers immediately
+                if self.recognizer.energy_threshold > 450:
+                    self.recognizer.energy_threshold = 300
+                elif self.recognizer.energy_threshold < 100:
+                    self.recognizer.energy_threshold = 150
+
                 audio = self.recognizer.listen(
                     source,
                     timeout=self.listen_timeout,
                     phrase_time_limit=self.phrase_time_limit,
                 )
+
+            # Step 1: Ultra-fast Groq Whisper Turbo (150ms)
+            groq_text = self._transcribe_groq(audio)
+            if groq_text:
+                return groq_text, None
+
+            # Step 2: Fallback to Google Web Speech API
             transcript = self.recognizer.recognize_google(audio)
             return transcript.strip(), None
 

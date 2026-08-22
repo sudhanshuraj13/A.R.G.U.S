@@ -217,6 +217,9 @@ static esp_err_t capture_handler(httpd_req_t *req) {
 
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-cache, no-store, must-revalidate");
+
 
   esp_err_t res;
   if (fb->format == PIXFORMAT_JPEG) {
@@ -278,7 +281,7 @@ bool initCamera() {
     config.fb_count = FB_COUNT;
     config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
-    config.frame_size = FRAMESIZE_SVGA;
+    config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 12;
     config.fb_count = 1;
     config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
@@ -302,7 +305,9 @@ bool initWiFi() {
   }
 #endif
 
+  WiFi.setSleep(false); // Disable Wi-Fi modem sleep for zero latency
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
   Serial.print("[wifi] connecting");
 
   int retries = 0;
@@ -332,6 +337,8 @@ void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
   config.max_uri_handlers = 8;
+  config.lru_purge_enable = true;
+
 
   httpd_uri_t index_uri = {
     .uri = "/", .method = HTTP_GET, .handler = index_handler, .user_ctx = NULL
